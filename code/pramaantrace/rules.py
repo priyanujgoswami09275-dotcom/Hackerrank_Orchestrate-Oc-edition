@@ -148,7 +148,6 @@ class RuleEngine:
                 "phone",
                 "requester_phone",
                 "email_hash",
-                "customer_reference",
                 "subject_reference",
             )
             return any(

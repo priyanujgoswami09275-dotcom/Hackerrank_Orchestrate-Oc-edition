@@ -86,6 +86,30 @@ def assess(
 
 
 class ParticipantCreatedCaseTests(unittest.TestCase):
+    def test_shared_support_reference_is_not_a_prohibited_direct_identifier(self) -> None:
+        values = (CURRENT_EMAIL, "customer-reference-fixture")
+
+        self.assertFalse(
+            RuleEngine.has_prohibited_identifiers(
+                "SUPPORT_MESSAGE",
+                {
+                    "customer_reference": "customer-reference-fixture",
+                    "message_excerpt": "Shared order conversation",
+                },
+                identity_values=values,
+            )
+        )
+        self.assertTrue(
+            RuleEngine.has_prohibited_identifiers(
+                "SUPPORT_MESSAGE",
+                {
+                    "customer_reference": "customer-reference-fixture",
+                    "requester_email": CURRENT_EMAIL,
+                },
+                identity_values=values,
+            )
+        )
+
     def test_sync_recreated_replica_is_gated_by_audit_time(self) -> None:
         store = RecordStore()
         store.add_record(
