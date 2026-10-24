@@ -131,6 +131,7 @@ COLLECTION_SYSTEM = {
 }
 
 SQL_TABLES_WITHOUT_RECORDS = {"snapshot_scope"}
+MEDIA_CACHE_VERSION = 2
 
 EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
 HASH_PATTERN = re.compile(r"\b[a-f0-9]{64}\b", re.I)
@@ -711,34 +712,35 @@ def _eligible_media_entries(
 def _vision_ocr(assets: list[Path]) -> tuple[dict[str, dict[str, Any]], str]:
     if not assets:
         return {}, ""
-    script = Path(__file__).with_name("vision_ocr.swift")
     if sys.platform == "darwin":
+        script = Path(__file__).with_name("vision_ocr.swift")
         executable = os.environ.get("SWIFT_EXECUTABLE", "swift")
-        if not shutil_which(executable):
-            return {}, ""
-        completed = subprocess.run(
-            [executable, str(script), *map(str, assets)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode:
-            raise RuntimeError(
-                "Vision OCR failed: "
-                + (completed.stderr.strip() or f"exit {completed.returncode}")
-            )
-        try:
-            results = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("Vision OCR returned invalid JSON") from exc
-        return {
-            str(Path(item["path"]).resolve()): {
-                "text": str(item.get("text", "")),
-                "lines": item.get("lines", []),
-            }
-            for item in results
-        }, "Apple Vision"
+        if shutil_which(executable):
+            try:
+                completed = subprocess.run(
+                    [executable, str(script), *map(str, assets)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                if completed.returncode == 0:
+                    results = json.loads(completed.stdout)
+                    return {
+                        str(Path(item["path"]).resolve()): {
+                            "text": str(item.get("text", "")),
+                            "lines": item.get("lines", []),
+                        }
+                        for item in results
+                    }, "Apple Vision"
+            except (OSError, json.JSONDecodeError, KeyError, TypeError):
+                # Vision can be unavailable even when Swift is installed.
+                # Try the portable backend before marking media unprocessed.
+                pass
 
+    return _tesseract_ocr(assets)
+
+
+def _tesseract_ocr(assets: list[Path]) -> tuple[dict[str, dict[str, Any]], str]:
     try:
         import pytesseract
         from PIL import Image
@@ -748,16 +750,41 @@ def _vision_ocr(assets: list[Path]) -> tuple[dict[str, dict[str, Any]], str]:
         pytesseract.get_tesseract_version()
     except Exception:
         return {}, ""
+
+    pdfium = None
+    if any(path.suffix.casefold() == ".pdf" for path in assets):
+        try:
+            import pypdfium2 as pdfium_module
+
+            pdfium = pdfium_module
+        except ImportError:
+            pass
+
     extracted: dict[str, dict[str, Any]] = {}
     for path in assets:
-        if path.suffix.casefold() == ".pdf":
+        try:
+            if path.suffix.casefold() == ".pdf":
+                if pdfium is None:
+                    continue
+                document = pdfium.PdfDocument(str(path))
+                page_text = []
+                for page in document:
+                    bitmap = page.render(scale=2)
+                    with bitmap.to_pil() as image:
+                        page_text.append(pytesseract.image_to_string(image))
+                close = getattr(document, "close", None)
+                if callable(close):
+                    close()
+                text = "\n".join(page_text).strip()
+            else:
+                with Image.open(path) as image:
+                    text = pytesseract.image_to_string(image)
+            extracted[str(path.resolve())] = {"text": text, "lines": []}
+        except Exception:
+            # Keep other eligible assets usable. The caller records each
+            # unprocessed file and reports partial media coverage.
             continue
-        with Image.open(path) as image:
-            extracted[str(path.resolve())] = {
-                "text": pytesseract.image_to_string(image),
-                "lines": [],
-            }
-    return extracted, "Tesseract"
+    return extracted, "Tesseract" if extracted else ""
 
 
 def shutil_which(executable: str) -> str | None:
@@ -1047,8 +1074,12 @@ def load_media_evidence(
     entries = _eligible_media_entries(manifest, request_rows)
     if not entries:
         return 0, 0, (), ()
-    cache = cache_dir or _cache_directory()
-    cache.mkdir(parents=True, exist_ok=True)
+    disable_cache = os.environ.get(
+        "PRAMAANTRACE_DISABLE_MEDIA_CACHE", ""
+    ).strip().casefold() in {"1", "true", "yes"}
+    cache = None if disable_cache else (cache_dir or _cache_directory())
+    if cache is not None:
+        cache.mkdir(parents=True, exist_ok=True)
 
     uncached: list[tuple[Mapping[str, str], Path, str, Path]] = []
     text_by_id: dict[
@@ -1063,13 +1094,20 @@ def load_media_evidence(
         # Files are opened only after the manifest time is known eligible for
         # at least one requested audit cutoff.
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        cached_path = cache / f"{digest}.json"
-        if cached_path.is_file():
+        cache_key = hashlib.sha256(
+            f"pramaantrace-media-v{MEDIA_CACHE_VERSION}:{digest}".encode("ascii")
+        ).hexdigest()
+        cached_path = cache / f"{cache_key}.json" if cache is not None else None
+        if cached_path is not None and cached_path.is_file():
             try:
                 cached = json.loads(cached_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 cached = {}
-            if cached.get("sha256") == digest and isinstance(cached.get("text"), str):
+            if (
+                cached.get("sha256") == digest
+                and cached.get("cache_version") == MEDIA_CACHE_VERSION
+                and isinstance(cached.get("text"), str)
+            ):
                 text_by_id[entry["file_id"]] = (
                     cached["text"],
                     cached.get("backend", "cache"),
@@ -1086,16 +1124,20 @@ def load_media_evidence(
             extracted = _pdf_text(source)
             if extracted.strip():
                 text_by_id[entry["file_id"]] = (extracted, "pypdf", source, [])
-                cache_payload = {
-                    "sha256": digest,
-                    "backend": "pypdf",
-                    "text": extracted,
-                    "lines": [],
-                }
-                cached_path.write_text(
-                    json.dumps(cache_payload, ensure_ascii=False, sort_keys=True),
-                    encoding="utf-8",
-                )
+                if cached_path is not None:
+                    cache_payload = {
+                        "sha256": digest,
+                        "cache_version": MEDIA_CACHE_VERSION,
+                        "backend": "pypdf",
+                        "text": extracted,
+                        "lines": [],
+                    }
+                    cached_path.write_text(
+                        json.dumps(
+                            cache_payload, ensure_ascii=False, sort_keys=True
+                        ),
+                        encoding="utf-8",
+                    )
                 continue
         pending_ocr.append(source)
 
@@ -1106,7 +1148,10 @@ def load_media_evidence(
     for item in uncached:
         entry, source, digest, cached_path = item
         key = str(source.resolve())
-        if key in text_by_id and source.suffix.casefold() == ".pdf":
+        if (
+            entry["file_id"] in text_by_id
+            and source.suffix.casefold() == ".pdf"
+        ):
             continue
         ocr_result = ocr_results.get(key)
         if ocr_result is None:
@@ -1115,19 +1160,21 @@ def load_media_evidence(
         text = str(ocr_result.get("text", ""))
         lines = list(ocr_result.get("lines", []))
         text_by_id[entry["file_id"]] = (text, ocr_backend, source, lines)
-        cached_path.write_text(
-            json.dumps(
-                {
-                    "sha256": digest,
-                    "backend": ocr_backend,
-                    "text": text,
-                    "lines": lines,
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        if cached_path is not None:
+            cached_path.write_text(
+                json.dumps(
+                    {
+                        "sha256": digest,
+                        "cache_version": MEDIA_CACHE_VERSION,
+                        "backend": ocr_backend,
+                        "text": text,
+                        "lines": lines,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
 
     record_count = 0
     backends = set()

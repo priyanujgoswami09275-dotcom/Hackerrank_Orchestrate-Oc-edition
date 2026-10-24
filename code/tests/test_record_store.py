@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +18,8 @@ from pramaantrace.loader import (  # noqa: E402
     load_media_evidence,
     load_dataset,
     normalize_sql_file,
+    _tesseract_ocr,
+    _vision_ocr,
 )
 from pramaantrace.store import (  # noqa: E402
     CapturedText,
@@ -109,6 +114,184 @@ class RecordStoreTests(unittest.TestCase):
                     ).text,
                     "fixture-media text",
                 )
+
+    def test_tesseract_fallback_renders_scanned_pdf_pages(self) -> None:
+        from PIL import Image
+
+        class FakeBitmap:
+            def to_pil(self):
+                return Image.new("RGB", (8, 8))
+
+        class FakePage:
+            def render(self, *, scale):
+                self.scale = scale
+                return FakeBitmap()
+
+        fake_tesseract = types.ModuleType("pytesseract")
+        fake_tesseract.get_tesseract_version = lambda: "fixture"
+        fake_tesseract.image_to_string = lambda image: "portable OCR text"
+        fake_pdfium = types.ModuleType("pypdfium2")
+        fake_pdfium.PdfDocument = lambda path: [FakePage()]
+
+        with tempfile.TemporaryDirectory() as directory:
+            pdf = Path(directory) / "fixture.pdf"
+            pdf.write_bytes(b"fixture pdf bytes")
+            with patch.dict(
+                sys.modules,
+                {"pytesseract": fake_tesseract, "pypdfium2": fake_pdfium},
+            ):
+                result, backend = _tesseract_ocr([pdf])
+
+        self.assertEqual(backend, "Tesseract")
+        self.assertEqual(
+            result[str(pdf.resolve())]["text"],
+            "portable OCR text",
+        )
+
+    def test_selectable_pdf_text_is_not_reported_as_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / "dataset"
+            pdf = dataset / "evidence" / "fixture.pdf"
+            pdf.parent.mkdir(parents=True)
+            pdf.write_bytes(b"fixture pdf bytes")
+            store = RecordStore()
+            with (
+                patch("pramaantrace.loader._pdf_text", return_value="selectable text"),
+                patch("pramaantrace.loader._vision_ocr") as ocr,
+            ):
+                result = load_media_evidence(
+                    dataset=dataset,
+                    manifest=[
+                        {
+                            "file_id": "fixture-pdf",
+                            "file_path": "evidence/fixture.pdf",
+                            "captured_at": "2026-05-01T00:00:00Z",
+                        }
+                    ],
+                    request_rows=[{"audit_at": "2026-05-02T00:00:00Z"}],
+                    store=store,
+                    cache_dir=root / "external-cache",
+                )
+
+        self.assertEqual(result, (0, 1, (), ("pypdf",)))
+        ocr.assert_not_called()
+        self.assertEqual(
+            store.read_text(
+                audit_at="2026-05-02T00:00:00Z",
+                capture_id="fixture-pdf",
+            ).text,
+            "selectable text",
+        )
+
+    def test_missing_vision_falls_back_to_tesseract_backend(self) -> None:
+        assets = [Path("fixture.png")]
+        expected = (
+            {str(assets[0].resolve()): {"text": "fallback", "lines": []}},
+            "Tesseract",
+        )
+        with (
+            patch("pramaantrace.loader.sys.platform", "darwin"),
+            patch("pramaantrace.loader.shutil_which", return_value=None),
+            patch("pramaantrace.loader._tesseract_ocr", return_value=expected) as fallback,
+        ):
+            result = _vision_ocr(assets)
+
+        self.assertEqual(result, expected)
+        fallback.assert_called_once_with(assets)
+
+    def test_media_cache_can_be_disabled_for_determinism_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / "dataset"
+            media = dataset / "evidence" / "fixture.png"
+            media.parent.mkdir(parents=True)
+            media.write_bytes(b"fixture bytes")
+            entry = {
+                "file_id": "fixture-media",
+                "file_path": "evidence/fixture.png",
+                "captured_at": "2026-05-01T00:00:00Z",
+            }
+            output = {
+                str(media.resolve()): {
+                    "text": "stable OCR text",
+                    "lines": [],
+                }
+            }
+            cache = root / "external-cache"
+            with (
+                patch.dict("os.environ", {"PRAMAANTRACE_DISABLE_MEDIA_CACHE": "1"}),
+                patch(
+                    "pramaantrace.loader._vision_ocr",
+                    return_value=(output, "fixture OCR"),
+                ) as ocr,
+            ):
+                for _ in range(2):
+                    load_media_evidence(
+                        dataset=dataset,
+                        manifest=[entry],
+                        request_rows=[{"audit_at": "2026-05-02T00:00:00Z"}],
+                        store=RecordStore(),
+                        cache_dir=cache,
+                    )
+
+        self.assertEqual(ocr.call_count, 2)
+        self.assertFalse(cache.exists())
+
+    def test_media_cache_ignores_legacy_unversioned_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / "dataset"
+            media = dataset / "evidence" / "fixture.png"
+            media.parent.mkdir(parents=True)
+            media.write_bytes(b"fixture bytes")
+            cache = root / "external-cache"
+            cache.mkdir()
+            digest = hashlib.sha256(media.read_bytes()).hexdigest()
+            (cache / f"{digest}.json").write_text(
+                json.dumps(
+                    {
+                        "sha256": digest,
+                        "backend": "old extractor",
+                        "text": "stale extraction",
+                        "lines": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = {
+                str(media.resolve()): {
+                    "text": "current extraction",
+                    "lines": [],
+                }
+            }
+            store = RecordStore()
+            with patch(
+                "pramaantrace.loader._vision_ocr",
+                return_value=(output, "fixture OCR"),
+            ) as ocr:
+                load_media_evidence(
+                    dataset=dataset,
+                    manifest=[
+                        {
+                            "file_id": "fixture-media",
+                            "file_path": "evidence/fixture.png",
+                            "captured_at": "2026-05-01T00:00:00Z",
+                        }
+                    ],
+                    request_rows=[{"audit_at": "2026-05-02T00:00:00Z"}],
+                    store=store,
+                    cache_dir=cache,
+                )
+
+            ocr.assert_called_once()
+            self.assertEqual(
+                store.read_text(
+                    audit_at="2026-05-02T00:00:00Z",
+                    capture_id="fixture-media",
+                ).text,
+                "current extraction",
+            )
 
     def test_null_sentinels_are_not_indexed_as_identifiers(self) -> None:
         identifiers = extract_identifiers(

@@ -41,6 +41,8 @@ def assess(
     *,
     email: str = CURRENT_EMAIL,
     audit_log: list[dict[str, str]] | None = None,
+    audit_at: str = AUDIT_AT,
+    activities: tuple[dict[str, str], ...] = (),
 ) -> dict:
     identities = [
         {
@@ -59,7 +61,7 @@ def assess(
         "requested_at": "2026-08-01T00:00:00Z",
         "reported_status": "NOT_STARTED",
         "reported_at": "2026-08-02T00:00:00Z",
-        "audit_at": AUDIT_AT,
+        "audit_at": audit_at,
         "request_text": "Please erase my account and personal information.",
     }
     return assess_case(
@@ -67,11 +69,157 @@ def assess(
         store=store,
         identity_resolver=IdentityResolver(identities, audit_log or []),
         rule_engine=RULES,
-        activities=(),
+        activities=activities,
     )
 
 
 class ParticipantCreatedCaseTests(unittest.TestCase):
+    def test_sync_recreated_replica_is_gated_by_audit_time(self) -> None:
+        store = RecordStore()
+        store.add_record(
+            NormalizedRecord(
+                capture_id="pre-delete-primary",
+                captured_at="2026-09-10T00:00:00Z",
+                topology="primary",
+                system_id="account_service",
+                resource_id="profile-fixture",
+                category="USER_PROFILE",
+                identifiers={"emails": (CURRENT_EMAIL,), "user_ids": (USER_ID,)},
+                attributes={"email": CURRENT_EMAIL, "user_id": USER_ID},
+            )
+        )
+        store.add_scope(
+            RecordScope(
+                capture_id="primary-deletion-listing",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="account_service",
+                category="USER_PROFILE",
+                complete_listing=True,
+            )
+        )
+        store.add_record(
+            NormalizedRecord(
+                capture_id="post-sync-replica",
+                captured_at="2026-09-20T00:00:00Z",
+                topology="read_replica",
+                system_id="account_service",
+                resource_id="profile-fixture",
+                category="USER_PROFILE",
+                identifiers={"emails": (CURRENT_EMAIL,), "user_ids": (USER_ID,)},
+                attributes={"email": CURRENT_EMAIL, "user_id": USER_ID},
+            )
+        )
+        sync_event = {
+            "activity_id": "fixture-sync",
+            "event_time": "2026-09-19T00:00:00Z",
+            "event_type": "sync_completed",
+            "source_system": "account_service",
+            "target_system": "account_service",
+            "resource_id": "profile-fixture",
+            "reported_result": "SUCCESS",
+            "details": "sync completed",
+        }
+
+        before_recreation = assess(
+            store,
+            audit_at="2026-09-18T00:00:00Z",
+            activities=(sync_event,),
+        )
+        after_recreation = assess(
+            store,
+            audit_at="2026-09-21T00:00:00Z",
+            activities=(sync_event,),
+        )
+
+        self.assertEqual(before_recreation["deletion_status"], "COMPLETE")
+        self.assertEqual(
+            before_recreation["steps"][0]["operation"],
+            "VERIFY_RECORD_ABSENT",
+        )
+        self.assertEqual(after_recreation["deletion_status"], "INCOMPLETE")
+        self.assertEqual(
+            after_recreation["steps"][0]["operation"],
+            "REPORT_REMAINING_RECORD",
+        )
+        self.assertEqual(
+            after_recreation["steps"][0]["evidence_id"],
+            "post-sync-replica",
+        )
+
+    def test_flow_and_restore_risks_get_ordered_three_step_plans(self) -> None:
+        store = RecordStore()
+        common_ids = {"emails": (CURRENT_EMAIL,), "user_ids": (USER_ID,)}
+        store.add_record(
+            NormalizedRecord(
+                capture_id="profile-capture",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="account_service",
+                resource_id="profile-fixture",
+                category="USER_PROFILE",
+                identifiers=common_ids,
+                attributes={"email": CURRENT_EMAIL, "user_id": USER_ID},
+            )
+        )
+        store.add_record(
+            NormalizedRecord(
+                capture_id="flow-capture",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="integration_service",
+                resource_id="flow-fixture",
+                category="DATA_FLOW",
+                identifiers=common_ids,
+                attributes={
+                    "email": CURRENT_EMAIL,
+                    "user_id": USER_ID,
+                    "enabled": True,
+                },
+            )
+        )
+        store.add_record(
+            NormalizedRecord(
+                capture_id="backup-capture",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="backup_service",
+                resource_id="backup-fixture",
+                category="BACKUP_ARCHIVE",
+                identifiers=common_ids,
+                attributes={
+                    "email": CURRENT_EMAIL,
+                    "user_id": USER_ID,
+                    "restore_allowed": True,
+                },
+            )
+        )
+
+        result = assess(store)
+        steps = result["steps"]
+        self.assertEqual(result["deletion_status"], "INCOMPLETE")
+        self.assertEqual(
+            [(step["phase"], step["operation"]) for step in steps],
+            [
+                ("FINDING", "REPORT_REMAINING_RECORD"),
+                ("FINDING", "REPORT_ACTIVE_DATA_FLOW"),
+                ("FINDING", "REPORT_RESTORE_RISK"),
+                ("REMEDIATION", "DISABLE_DATA_FLOW"),
+                ("REMEDIATION", "BLOCK_RESTORE"),
+                ("REMEDIATION", "DELETE_RECORD"),
+                ("VERIFICATION", "VERIFY_RECORD_ABSENT"),
+                ("VERIFICATION", "VERIFY_DATA_FLOW_DISABLED"),
+                ("VERIFICATION", "VERIFY_RESTORE_BLOCKED"),
+            ],
+        )
+        self.assertTrue(
+            all(
+                step["evidence_id"] == ""
+                for step in steps
+                if step["phase"] in {"REMEDIATION", "VERIFICATION"}
+            )
+        )
+
     def test_incomplete_plan_verifies_already_compliant_retained_records(self) -> None:
         store = RecordStore()
         store.add_record(

@@ -9,9 +9,11 @@ evidence, plans steps, validates the output, and writes the CSV.
 - Python 3.10 or newer
 - `pypdf` for text extraction from PDFs
 - macOS: Swift with the Apple Vision and PDFKit frameworks for OCR
-- Other platforms: Tesseract available on `PATH`, plus Pillow and pytesseract,
-  for image OCR. If OCR is unavailable, the run reports unprocessed,
-  cutoff-eligible media rather than claiming it was read.
+- Portable fallback: Tesseract available on `PATH`, plus Pillow,
+  `pytesseract`, and `pypdfium2`. Tesseract reads images and rasterized scanned
+  PDF pages when Apple Vision is unavailable. Selectable PDF text is extracted
+  with `pypdf` first. If no usable OCR backend is installed, the run reports
+  cutoff-eligible media it skipped rather than claiming it was read.
 
 Install Python dependencies:
 
@@ -26,7 +28,13 @@ calls. On macOS, set `SWIFT_EXECUTABLE` only if `swift` is not on `PATH`.
 `PRAMAANTRACE_MEDIA_CACHE` optionally chooses an OCR cache directory; by
 default it is outside this repository (`~/Library/Caches` on macOS or
 `$XDG_CACHE_HOME` / `~/.cache` elsewhere). The cache can contain extracted
-personal data and must not be submitted.
+personal data and must not be submitted or included in `code.zip`. Set
+`PRAMAANTRACE_DISABLE_MEDIA_CACHE=1` to bypass cache reads and writes, for
+example when checking cold-run determinism. A shared cache directory can be
+pointed to with `PRAMAANTRACE_MEDIA_CACHE` when securely reusing extracted text
+on another machine. Without that cache, the other machine reruns its available
+OCR backend; cross-platform OCR text equivalence is not guaranteed. The
+submitted `output.csv` is standalone and does not require the cache to be read.
 
 ## Run
 
@@ -39,9 +47,10 @@ python3 run.py
 The command reads participant-visible files under `../dataset/`, validates all
 518 predictions, and writes `../output.csv`. Evidence is time-gated by
 `audit_at`. Media is read only if its manifest capture time is eligible for at
-least one request in the run. Image OCR uses Apple Vision on macOS (or
-Tesseract where configured); text-bearing PDFs use pypdf, with Vision OCR as a
-fallback for scanned PDFs. Extracted text is cached outside the package.
+least one request in the run. Image OCR uses Apple Vision on macOS when
+available, then falls back to Tesseract. Text-bearing PDFs use `pypdf`; scanned
+PDFs use Vision or, when available, PyPDFium2 rendering plus Tesseract.
+Extracted text is cached outside the package.
 
 ## One-command sample evaluation
 
