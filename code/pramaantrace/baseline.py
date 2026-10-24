@@ -571,10 +571,23 @@ def assess_case(
             missing_required_retention = True
 
     if findings or missing_required_retention:
+        # An incomplete case still needs a complete post-remediation checklist.
+        # Include records and processes that already satisfy policy alongside
+        # the checks for findings being remediated. Future checks carry no
+        # evidence because they have not happened yet.
+        incomplete_verifications = [
+            *future_verifications,
+            *(
+                {**step, "evidence_id": ""}
+                for step in compliant_verifications
+            ),
+        ]
         return {
             "case_id": request["case_id"],
             "deletion_status": "INCOMPLETE",
-            "steps": build_steps(findings, remediations, future_verifications),
+            "steps": build_steps(
+                findings, remediations, incomplete_verifications
+            ),
         }
     if compliant_verifications:
         return {

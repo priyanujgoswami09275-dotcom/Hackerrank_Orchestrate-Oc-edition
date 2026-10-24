@@ -72,6 +72,50 @@ def assess(
 
 
 class ParticipantCreatedCaseTests(unittest.TestCase):
+    def test_incomplete_plan_verifies_already_compliant_retained_records(self) -> None:
+        store = RecordStore()
+        store.add_record(
+            NormalizedRecord(
+                capture_id="profile-capture",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="account_service",
+                resource_id="profile-fixture",
+                category="USER_PROFILE",
+                identifiers={"emails": (CURRENT_EMAIL,), "user_ids": (USER_ID,)},
+                attributes={"email": CURRENT_EMAIL, "user_id": USER_ID},
+            )
+        )
+        store.add_record(
+            NormalizedRecord(
+                capture_id="hold-capture",
+                captured_at="2026-09-15T00:00:00Z",
+                topology="primary",
+                system_id="legal_service",
+                resource_id="hold-fixture",
+                category="LEGAL_HOLD_RECORD",
+                identifiers={"emails": (CURRENT_EMAIL,), "user_ids": (USER_ID,)},
+                attributes={
+                    "email": CURRENT_EMAIL,
+                    "user_id": USER_ID,
+                    "legal_hold": True,
+                },
+            )
+        )
+
+        result = assess(store)
+        verification_steps = [
+            step for step in result["steps"] if step["phase"] == "VERIFICATION"
+        ]
+
+        self.assertEqual(result["deletion_status"], "INCOMPLETE")
+        self.assertIn(
+            ("VERIFY_RECORD_PRESENT", "PRESENT"),
+            {(step["operation"], step["state"]) for step in verification_steps},
+        )
+        self.assertTrue(verification_steps)
+        self.assertTrue(all(step["evidence_id"] == "" for step in verification_steps))
+
     def test_historical_request_email_finds_current_subject_record(self) -> None:
         store = RecordStore()
         store.add_record(

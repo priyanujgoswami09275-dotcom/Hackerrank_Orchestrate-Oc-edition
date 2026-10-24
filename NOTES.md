@@ -63,3 +63,27 @@
 - Added custom condition tests. A retained tombstone with prohibited direct identifiers is INCOMPLETE and plans redaction. An active held record is verified as retained. If a required retained record is absent from the latest complete listing, the verdict is INCOMPLETE. The allowed operation vocabulary has no way to report or restore that missing retained record, so the current output has no fabricated step for that failure; this remains a contract limitation.
 - Added `code/check_source_literals.py`; it dynamically checks source against participant-visible request IDs, evidence IDs, and evidence manifest paths. Added a packaging script that zips only the contents of `code/`, excludes data, caches, credentials, build artifacts, and archives, verifies the archive, and prints its listing. `code/README.md` is packaged; archive-root `evaluation/` corresponds to source `code/evaluation/`.
 - Runtime model metadata for this session reports `claude-opus-4-8`; the media-enabled full baseline itself made no LLM calls. Vision and PDF extraction were executed locally. No API key was needed.
+
+## M4a — failure analysis and held-out fixes
+
+- M4a had not been completed before this follow-up; there was no bucket table.
+- Re-ran the media-enabled sample baseline and evaluator. Reproduced metrics are status 24/32, steps 64/193, fields 606/1,358 aligned fields, and sequence 1/32. The structured-only run is 23/32, 62/193, 569/1,351, and 1/32. These do not reproduce the previously reported media numbers of 66/193 steps and 604/1,351 fields; the current media-enabled output was byte-identical on two sample runs.
+- Fixed split: sort public sample cases by `case_id`; A is positions 1, 3, 5, … and B is positions 2, 4, 6, …. Baseline metrics before fixes:
+
+  | Split | Status | Steps | Fields | Exact sequences |
+  |---|---:|---:|---:|---:|
+  | A | 13/16 | 22/93 | 233/658 | 1/16 |
+  | B | 11/16 | 42/100 | 373/700 | 0/16 |
+  | All | 24/32 | 64/193 | 606/1,358 | 1/32 |
+
+- Kept fix 1: for an `INCOMPLETE` case, the planner now includes verification checks for already-compliant retained records and disabled processes, alongside checks for records/processes needing remediation. All verification evidence IDs in an incomplete plan are empty, as required for future checks. Added a synthetic regression test for a remaining profile plus an already-compliant legal-hold record.
+- Fix 1 metrics:
+
+  | Split | Status | Steps | Fields | Exact sequences |
+  |---|---:|---:|---:|---:|
+  | A | 13/16 | 22/93 | 245/665 | 1/16 |
+  | B | 11/16 | 43/100 | 406/700 | 1/16 |
+  | All | 24/32 | 65/193 | 651/1,365 | 2/32 |
+
+- The fix improved field and sequence scores on both halves and step score on B without reducing any metric; status was unchanged. The rise in the field denominator reflects additional planned verification steps. This change is contract-driven, not sample-specific.
+- The sample set contains 10 expected `COMPLETE` and 22 expected `INCOMPLETE` cases, with no `NOT_APPLICABLE` examples. The intent classifier predicts all 32 as deletion-authorizing, so sample specificity is untested; the 22 `NOT_APPLICABLE` rows in the 518-case baseline have no public labels to validate against.
