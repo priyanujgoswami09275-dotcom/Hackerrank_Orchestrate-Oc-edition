@@ -10,10 +10,10 @@ accuracy. The 32 samples are a weak estimate of behavior on the 518 evaluation
 requests. The baseline does not use sample labels or case-specific branches.
 
 The fixed split sorts sample `case_id` values and assigns 1-based odd positions
-to A and even positions to B. Fix development used A; B was held out. The only
-M4a planner fix adds future verification steps for already-compliant records
-and processes in otherwise incomplete cases. It was kept because no B metric
-regressed.
+to A and even positions to B. M4a development used A. During M4c, all eight
+wrong-status examples were inspected before the support-rule trial, so B was
+not a blind holdout for that round; its scores are reported as descriptive
+checks, not independent generalization evidence.
 
 ## Sample evaluation
 
@@ -30,11 +30,15 @@ regressed.
 | Final media-enabled baseline | All | 75.00% (24/32) | 35.23% (68/193) | 48.78% (659/1,351) | 6.25% (2/32) |
 
 The field denominator reflects the harness's aligned positions, including
-extra candidate steps; it is not the number of expected fields alone. The final
-media-enabled candidate has 92 missing and 20 extra content steps when
-comparing step contents without `step_no`. Positional differences include
-44 `system_id`, 44 `resource_id`, 37 operation, 35 state, 17 evidence, and 11
-phase mismatches; these overlap missing/extra steps.
+extra candidate steps; it is not the number of expected fields alone. M4c's
+corrected per-case multiset diff uses
+`(phase, system_id, resource_id, operation, state, evidence_id)` and ignores
+`step_no`. It finds 80 unpaired missing expected steps, 8 unpaired extra
+steps, and 12 one-field `evidence_id` mismatches. Before pairing one-field
+differences, the exact content multiset has 92 missing and 20 extra tuples.
+The prior positional counts for wrong `system_id` and `resource_id` were
+alignment artifacts and are withdrawn. From `code/`, run
+`python3 evaluation/failure_analysis.py` for the per-case unmatched tuples.
 
 Media changed two sample predictions and corrected one status. On the full
 request set, media-derived evidence was linked to 8 of 518 cases. This is a
@@ -43,16 +47,22 @@ generalize.
 
 ## Failure analysis and custom cases
 
-The eight wrong sample statuses are six expected COMPLETE cases predicted
-INCOMPLETE and two expected INCOMPLETE cases predicted COMPLETE. Dominant
-step errors are missing findings/verifications and subject-to-resource or
-system linkage. Retained-record handling accounts for 29 omitted compliant
-state verifications (17 PRESENT, 8 ANONYMIZED, 4 REDACTED) and six omitted
-privacy-treatment steps. Among expected sample risks, the candidate found five
-of six active flows and one of three restorable backups; each risk it found
-has the ordered finding, remediation, and verification. Four expected
-replica-cited remaining-record findings were found. The complete ranked
-bucket table and anonymized examples are in `NOTES.md`.
+The eight wrong statuses comprise six expected COMPLETE predicted INCOMPLETE
+and two expected INCOMPLETE predicted COMPLETE. The causes group into three
+missing resource links, three support-message customer-reference
+interpretations, one analytics attribution/category issue, and one backup
+restore-field mismatch. A support-reference rule trial improved status counts
+but lowered field accuracy on B and all samples, so it was reverted.
+
+The 29 expected retained/already-compliant checks comprise 23 unpaired missing
+steps and 6 citation-only mismatches. Public samples do not show a required
+retained record missing; condition d is synthetic-test-only and unverified
+against public labels. Among expected sample risks, the baseline found 5/6
+active flows and 1/3 restorable backups. Every detected risk had the ordered
+finding/remediation/verification triple. It found 4/4 expected
+primary-absent/replica-present findings and 3/3 expected sync-linked
+recreations. The corrected bucket table, status review, and anonymized
+examples are in `NOTES.md`.
 
 Participant-created tests in `code/tests/` cover:
 
@@ -81,10 +91,15 @@ zero-row/404 results. The cited artifacts are at or before `audit_at`. A text
 search miss alone is not treated as proof of absence.
 
 The public sample has 10 expected COMPLETE and 22 expected INCOMPLETE requests,
-with zero expected NOT_APPLICABLE cases. The intent classifier authorizes all
-32, so non-NOT_APPLICABLE intent is correct on 32/32 and NOT_APPLICABLE
-accuracy is untestable at 0/0. The 22 NOT_APPLICABLE outputs among the 518
-evaluation requests have no public labels.
+with zero expected NOT_APPLICABLE cases. Public labels therefore cannot score
+NOT_APPLICABLE accuracy. Manual review of the 22 pre-fix full-run N/A texts
+found 14 repeated Portuguese requests explicitly asking for permanent
+deletion, and 8 clear access/correction/marketing/keep-active requests. The 10
+shortest deletion-classified requests included one explicit “do not close”
+login request and nine explicit Japanese deletion requests. The intent rules
+now recognize Portuguese `exclusão`/`excluir`, Portuguese negation, and
+negated account closure. This correction does not change public-sample metrics;
+N/A accuracy remains unverified against labels.
 
 ## Full-dataset output
 
@@ -92,14 +107,17 @@ The final deterministic baseline validated all 518 requests:
 
 | Status | Cases |
 |---|---:|
-| COMPLETE | 120 |
-| INCOMPLETE | 376 |
-| NOT_APPLICABLE | 22 |
+| COMPLETE | 122 |
+| INCOMPLETE | 387 |
+| NOT_APPLICABLE | 9 |
 
 The root `output.csv` contains one sorted row per request and passed the output
-validator. Warm-cache and cache-disabled full runs both produced SHA-256
-`e554553fd4b061b6253b9f3da1f7f2ce8b2a2c251a06650abe62441c1652309f`.
-The submission CSV is standalone; it does not require the local OCR cache.
+validator. Its SHA-256 is
+`9745eb17e50948658c8531dc173e64e7b8e381faa44b9700749dd9dc5a8d2bf8`.
+Two consecutive warm-cache M4c full runs were byte-identical. The earlier
+M4b cache-enabled/cache-disabled comparison also matched, but preceded the
+intent correction; a cache-disabled run was not repeated afterward. The
+submission CSV is standalone and does not require the local OCR cache.
 
 ## Improvements, limitations, and next work
 

@@ -100,7 +100,12 @@ the final measurements above supersede those provisional values. Media changes
 two sample outputs and corrects one status relative to structured-only. It
 does not explain the remaining low step/sequence scores.
 
-### Ranked sample error buckets
+### Initial positional sample error buckets (superseded by M4c)
+
+This table was produced by positional alignment. It is retained as history but
+is not a reliable attribution of wrong resource/system fields: a missing early
+step shifts all later comparisons. The corrected multiset analysis is in M4c
+below and is authoritative.
 
 The step-field mismatch counts below are positional comparisons at the same
 array index. Missing/extra content-step counts use a multiset comparison that
@@ -187,3 +192,187 @@ cache-disabled full run and warm-cache run both produced the same standalone
 - Earlier media score observations based on unversioned OCR cache entries were
   superseded after the cache-key version change; no case-specific patch was
   retained from those observations.
+
+## M4c — corrected diagnostics, status review, and intent audit
+
+### Diagnostic method and corrected buckets
+
+The split still sorts public sample IDs and assigns 1-based odd positions to A
+and even positions to B. **This M4c review is not a fully blind held-out
+experiment:** I inspected all eight wrong-status cases, including B, before the
+support-rule trial. A/B figures below are reported, but B is descriptive rather
+than independent generalization evidence.
+
+`code/evaluation/failure_analysis.py` compares each case as a multiset of
+`(phase, system_id, resource_id, operation, state, evidence_id)` tuples and
+ignores `step_no`. It reports the full unmatched expected/predicted tuples for
+each case. It pairs only unmatched steps that differ in exactly one content
+field; it does not infer a resource/system mismatch from a shifted array index.
+`python3 evaluation/failure_analysis.py` runs this diagnostic against a
+temporary sample baseline without changing `output.csv`.
+
+| Rank | Corrected bucket | Count | Anonymized example |
+|---:|---|---:|---|
+| 1 | Unpaired missing expected content steps | 80 | An expected absent-record verification has no corresponding candidate step. |
+| 2 | One-field `evidence_id` mismatches | 12 | A compliant verification has an empty future-work citation because the candidate classified the case INCOMPLETE, while the expected COMPLETE answer cites a timely snapshot. |
+| 3 | Unpaired extra candidate content steps | 8 | A candidate reports and remediates a support message that the expected answer treats as already redacted. |
+| — | Isolated wrong `resource_id` pairs | 0 | No unmatched pair differed only in resource ID. Some unpaired steps may involve linkage, but cannot safely be assigned this label. |
+| — | Isolated wrong `system_id` pairs | 0 | No unmatched pair differed only in system ID; multi-field unpaired steps are not attributed speculatively. |
+| — | Isolated wrong operation/state/phase pairs | 0 | No unmatched pair differed only in operation, state, or phase. |
+
+Other overlapping diagnostic buckets:
+
+| Bucket | Count | Anonymized example / interpretation |
+|---|---:|---|
+| Wrong status | 8 cases: 6 expected COMPLETE → predicted INCOMPLETE; 2 expected INCOMPLETE → predicted COMPLETE | A positive cutoff-visible lookup or an unblocked restore is not translated into the expected incomplete verdict; a resource with no safe subject link prevents a complete verdict. |
+| Retained/already-compliant state handling | 29 expected checks: 23 unpaired missing, 6 citation-only mismatches | A policy-required retained audit record or already-anonymized analytics profile needs a target-state verification even when another record makes the plan incomplete. |
+| Replica drift missed | 0/4 expected primary-absent/replica-present findings missed | A primary listing is absent while a timely read/failover replica still contains the record; the baseline reports the copy. |
+| Sync recreation missed | 0/3 expected sync-linked sample findings missed | A copy reappears through a sync event at or before the audit cutoff; later events remain excluded. |
+| Active connector/data-flow risk missed | 1/6 expected findings | An enabled flow without a candidate record link is not found; each flow that is found receives the finding/disable/verification triple. |
+| Backup restore risk missed | 2/3 expected findings | A backup event uses a deletion-block field rather than the `restore_allowed` field currently consumed by the planner. |
+| Invalid absence-proof citations | 0/10 public COMPLETE absence citations | Four citations are complete-listing omissions and six are explicit zero-row/404 results; none is a text-search miss alone. |
+| Media contribution | 2 sample outputs changed, 1 status corrected, 8/518 full requests linked to media | OCR evidence changes one small number of public predictions; it does not address most structured-record linkage errors. |
+
+Before pairing one-field differences, the strict content multiset shows 92
+missing expected tuples and 20 extra candidate tuples. The 12 citation-only
+pairs explain 12 of each, leaving 80 genuinely unpaired expected steps and
+8 unpaired extras. The prior positional counts of 44 wrong system IDs and 44
+wrong resource IDs were alignment artifacts and are withdrawn. The evaluator's
+reported step metric still includes `step_no`; exact content matching without
+numbering is 101/193, while the evaluator's numbered tuple score remains
+68/193.
+
+The 29 expected target-state checks for retained/already-compliant records are
+not all wholly absent: 23 are unpaired missing checks (14
+`VERIFY_RECORD_PRESENT`, 8 `VERIFY_RECORD_ANONYMIZED`, 1
+`VERIFY_RECORD_REDACTED`), and 6 are citation-only mismatches across the three
+expected-COMPLETE support cases (3 PRESENT and 3 REDACTED checks). The old
+statement that all 29 were simply omitted is therefore too broad.
+
+### The eight wrong statuses and their evidence
+
+Labels below are anonymized by pattern and sorted public-sample order, not
+embedded in implementation logic. All cited captures listed are at or before
+their request's `audit_at`; post-cutoff evidence was excluded from every store
+query.
+
+| Group | Expected → predicted | Trigger / rule condition | Cutoff-visible snapshot and interpretation |
+|---|---|---|---|
+| A–B | COMPLETE → INCOMPLETE (2) | No record key was discovered. The expected subject-linked `USER_PROFILE` is absent under rule_01 (`Always` → DELETE). | Both expected absence checks cite the failover account listing captured 2026-09-02 23:00Z; audits are 2026-09-03 11:30Z and 2026-09-04 15:00Z. No timely identity-bearing record/activity link was found, so the baseline emitted no verification. No hold/retention exception or present replica explains the expected COMPLETE state. |
+| C | COMPLETE → INCOMPLETE (1) | The same linkage failure affects an absent `USER_PROFILE` under rule_01 and an already-compliant `ANALYTICS_PROFILE` under rule_07 (ANONYMIZE when attributable). | The expected absence citation is the 2026-09-02 23:00Z account listing. A later inventory capture at 2026-09-05 07:18:01Z is still before the 2026-09-07 10:20Z audit; the anonymized analytics record is captured 2026-09-07 09:45Z. The baseline did not connect either resource to the subject. No legal hold or replica conflict explains the status. |
+| D | INCOMPLETE → COMPLETE (1) | An identity-linked analytics lookup has `rows=1` at 2026-09-15 11:59:39Z, before the 12:00Z audit. Rule_07 asks whether the record is still attributable; the normalized record is linked through extracted identifiers, but the prohibited-identifier check only examines selected attributes and treats it as already anonymized. | The expected sample calls for REPORT_REMAINING_RECORD / DELETE_RECORD. That remediation conflicts with rule_07's ANONYMIZE action if the item is an attributable analytics profile. It may be a category-adapter issue, but this appears in one sample only; no fix was retained. |
+| E | INCOMPLETE → COMPLETE (1) | Rule_14 governs the backup archive. The timely event says `restore_candidate_evaluated` and `deletion_block=false`; the planner only checks `restore_allowed`, which is absent, and therefore misses the restore risk. | The event capture is 2026-09-15 11:59:39Z, before the 12:00Z audit. No later backup record for this resource is available by the cutoff. The sample expects REPORT_RESTORE_RISK / BLOCK_RESTORE / VERIFY_RESTORE_BLOCKED. This alternate backup-state schema occurs in one sample, so it remains unverified and was not patched. |
+| F–H | COMPLETE → INCOMPLETE (3) | Rule_05 retains shared support context and requires REDACT. The current check treats a subject-matching `customer_reference` as prohibited even though the expected state is redacted and direct contact fields are absent. | All three expected states cite the service export captured 2026-09-15 11:44:55Z, before the 12:00Z audits. It is the latest support-message record found at those cutoffs. The later 12:00Z bundle does not contain a later support-message record. No legal hold, ownership exception, or replica drift is indicated. |
+
+Root causes are therefore: missing evidence-backed subject/resource linkage (3
+cases), support-message customer-reference interpretation (3), an analytics
+attribution/category/operation mismatch (1), and an alternate backup restore
+field (1). The support-reference trial removed that field from the prohibited
+identifier check. It improved status accuracy but worsened held-out and overall
+field accuracy, so it was reverted under the round's no-regression rule. The
+analytics and backup patterns each occur in one public sample and were not
+implemented as dataset-specific fixes. The three unlinked cases have no safe
+generic resource join in the cutoff-visible records; deriving IDs from their
+names or sample labels would be an unsupported shortcut.
+
+### Fix trials and split scores
+
+| Run | Split | Status | Steps | Fields | Exact sequences |
+|---|---|---:|---:|---:|---:|
+| Final baseline before M4c edits | A | 13/16 | 25/93 | 253/651 | 1/16 |
+|  | B | 11/16 | 43/100 | 406/700 | 1/16 |
+|  | All | 24/32 | 68/193 | 659/1,351 | 2/32 |
+| Temporary support-reference trial | A | 14/16 | 25/93 | 246/651 | 1/16 |
+|  | B | 13/16 | 43/100 | 392/700 | 1/16 |
+|  | All | 27/32 | 68/193 | 638/1,351 | 2/32 |
+| Final after revert and intent correction | A | 13/16 | 25/93 | 253/651 | 1/16 |
+|  | B | 11/16 | 43/100 | 406/700 | 1/16 |
+|  | All | 24/32 | 68/193 | 659/1,351 | 2/32 |
+
+The support-reference trial was reverted: B status rose by two cases, but B
+field accuracy fell from 406/700 to 392/700 and overall field accuracy fell
+from 659/1,351 to 638/1,351. The final policy code is unchanged by that trial.
+The later intent correction does not affect the public sample, which has no
+NOT_APPLICABLE labels; its A, B, and all-sample metrics are unchanged, not
+claimed as a scored improvement.
+
+### Retained-state rule and condition checks
+
+For every evidence-linked record with a known deletion-rule category, assess
+the latest state at `audit_at` against the rule's target:
+
+- DELETE: verify ABSENT when absent; otherwise report, propose DELETE, and
+  require a future absence verification.
+- REDACT/ANONYMIZE: when prohibited identifiers remain, report and remediate;
+  otherwise verify the required REDACTED/ANONYMIZED state. In an INCOMPLETE
+  plan, already-compliant checks are included with an empty future
+  `evidence_id`.
+- RETAIN: verify PRESENT when the condition (including hold/retention or
+  attachment ownership/sharing) requires retention. A missing required retained
+  record makes the verdict INCOMPLETE, but the allowed vocabulary cannot
+  describe restoring it, so no operation is invented.
+- DATA_FLOW/BACKUP_ARCHIVE: active flows or allowed restores get finding,
+  disable/block remediation, and future verification; already-inactive/
+  blocked processes get a compliant-state verification.
+
+The planner already implements this rule for discovered resources. Added a
+synthetic test that checks PRESENT, REDACTED, ANONYMIZED, and ABSENT targets in
+one incomplete plan; it passes without changing sample predictions. Public
+samples contain 29 expected retained/already-compliant target checks, but do
+not show a required retained record missing. Condition d therefore remains
+unverified against a public expected answer; the synthetic missing-hold test
+returns INCOMPLETE with no invented step.
+
+At the sample cutoff, the baseline found 4/4 expected primary-absent /
+replica-present remaining-record findings and 3/3 expected sync-linked
+recreations. It found 5/6 expected active data flows and 1/3 expected
+restorable backups. Every risk it did detect had its ordered finding,
+remediation, and verification triple. Unit tests separately check replica
+drift, sync cutoff behavior, and flow/restore order. The 10 public COMPLETE
+absence citations remain artifact-backed and timely: 4 complete-listing
+omissions and 6 explicit zero-row/404 results; a text-search miss alone is not
+accepted.
+
+### Intent audit and corrected request-language handling
+
+The pre-fix full run predicted 22 NOT_APPLICABLE requests. Manual review of
+`request_text` only (not `reported_status`) found 8 clear access/correction/
+marketing/keep-active requests and 14 repeated Portuguese requests explicitly
+asking for permanent account deletion. The 10 shortest requests classified as
+deletion included one login-help request that explicitly says not to close the
+account, plus 9 explicit Japanese account-deletion requests. The intent rules
+now recognize Portuguese `exclusão` / `excluir`, Portuguese negation, and
+negated account closure. Unit tests cover those general phrases.
+
+This correction is not scored by the public sample because all 32 public
+requests are labeled as deletion requests. The intent changes are retained
+because the reviewed text is unambiguous, but accuracy on hidden N/A labels is
+still unverified. The full output now has 9 NOT_APPLICABLE rows rather than
+22; no reported-status value was used in this review.
+
+### Final M4c validation
+
+- Full run: 518 rows, COMPLETE=122, INCOMPLETE=387, NOT_APPLICABLE=9.
+- Output SHA-256: `9745eb17e50948658c8531dc173e64e7b8e381faa44b9700749dd9dc5a8d2bf8`.
+- Two consecutive warm-cache full runs were byte-identical with that SHA-256.
+- Sample evaluation remains status 24/32, step 68/193, field 659/1,351,
+  exact sequence 2/32.
+- Tests: 44 passed. Source-literal scan passed.
+- No M5 agent was started. The output remains a deterministic baseline.
+
+### Follow-up verification (2026-10-25)
+
+- The active terminal runtime exposes `ANTHROPIC_MODEL=claude-opus-4-8` and
+  `ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8`. This supersedes the earlier
+  config/footer discrepancy for this verification turn; the append-only
+  correction is recorded in `log.txt`. The prediction pipeline still made
+  zero model calls.
+- Re-ran the 44-test suite and the one-command sample evaluator: status 24/32,
+  steps 68/193, fields 659/1,351, exact sequences 2/32.
+- Re-ran the full baseline twice. Both runs validated 518 rows with
+  COMPLETE=122, INCOMPLETE=387, NOT_APPLICABLE=9 and produced the same
+  SHA-256 listed above.
+- Verified the existing 31-entry `code.zip` without rebuilding it. Source
+  files and both evaluation reports are present at the archive root layout
+  prescribed by packaging the contents of `code/`; dataset, cache, nested
+  archive, and secret-like-value checks passed.

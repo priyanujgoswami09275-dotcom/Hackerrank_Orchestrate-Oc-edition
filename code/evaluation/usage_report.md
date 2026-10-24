@@ -13,8 +13,8 @@ coding-assistant model used during development.
 | **Overall** | **0** | **0** | **0** | **$0.00** |
 
 - Audited requests: 518
-- Output status counts: COMPLETE=120, INCOMPLETE=376, NOT_APPLICABLE=22
-- Output SHA-256: `e554553fd4b061b6253b9f3da1f7f2ce8b2a2c251a06650abe62441c1652309f`
+- Output status counts: COMPLETE=122, INCOMPLETE=387, NOT_APPLICABLE=9
+- Output SHA-256: `9745eb17e50948658c8531dc173e64e7b8e381faa44b9700749dd9dc5a8d2bf8`
 - Average model requests per audited case: 0
 - Average input tokens per audited case: 0
 - Average output tokens per audited case: 0
@@ -22,10 +22,13 @@ coding-assistant model used during development.
 - Average tokens per model request: n/a (there were no model requests)
 
 The local media pass used Apple Vision/PDFKit and pypdf. These tools do not
-consume provider tokens, and no model-token cost is estimated for them. A
-warm-cache rerun and a cache-disabled rerun produced the same output SHA-256.
-OCR text is cached outside the repository; cache contents are excluded from
-`code.zip`, and the submitted output does not require the cache.
+consume provider tokens, and no model-token cost is estimated for them. Two
+consecutive warm-cache M4c full runs produced byte-identical output with the
+SHA-256 above. The earlier M4b warm-cache/cache-disabled comparison also
+matched, but it preceded the M4c intent correction; a cache-disabled run was
+not repeated after that correction. OCR text is cached outside the repository;
+cache contents are excluded from `code.zip`, and the submitted output does not
+require the cache.
 
 No API key was read, used, or recorded. These figures describe the measured
 baseline run only; they are not an estimate for a future LLM-enabled agent.
