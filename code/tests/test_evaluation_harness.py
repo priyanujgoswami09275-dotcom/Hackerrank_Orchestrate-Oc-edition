@@ -15,6 +15,7 @@ from harness import (  # noqa: E402
     STEP_FIELDS,
     check_sample_order,
     evaluate,
+    fixed_sample_splits,
     read_csv,
 )
 from failure_analysis import classify_unmatched, delta  # noqa: E402
@@ -34,8 +35,32 @@ class EvaluationHarnessTests(unittest.TestCase):
         self.assertEqual(metrics.status_correct, 32)
         self.assertEqual(metrics.sequences_correct, 32)
         self.assertEqual(metrics.matched_steps, metrics.expected_steps)
+        self.assertEqual(metrics.matched_steps, metrics.predicted_steps)
         self.assertEqual(metrics.matching_fields, metrics.aligned_fields)
         self.assertEqual(diffs, {})
+
+    def test_tuple_metrics_ignore_step_number_and_report_precision_recall(self) -> None:
+        actual = {key: dict(value) for key, value in self.expected.items()}
+        case_id = sorted(actual)[0]
+        row = actual[case_id]
+        steps = json.loads(row["steps_json"])
+        steps[0]["step_no"] += 10
+        steps[-1]["resource_id"] = "synthetic-unmatched-resource"
+        row["steps_json"] = json.dumps(steps)
+
+        metrics, _ = evaluate(self.expected, actual)
+
+        self.assertEqual(metrics.expected_steps, 193)
+        self.assertEqual(metrics.predicted_steps, 193)
+        self.assertEqual(metrics.matched_steps, 192)
+
+    def test_fixed_sample_split_is_sorted_odd_even_and_balanced(self) -> None:
+        split_a, split_b = fixed_sample_splits(self.expected)
+
+        self.assertEqual(len(split_a), 16)
+        self.assertEqual(len(split_b), 16)
+        self.assertEqual(set(split_a).intersection(split_b), set())
+        self.assertEqual(set(split_a).union(split_b), set(self.expected))
 
     def test_object_key_order_does_not_change_sequence_score(self) -> None:
         actual = {key: dict(value) for key, value in self.expected.items()}

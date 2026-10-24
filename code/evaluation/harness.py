@@ -28,11 +28,20 @@ STEP_FIELDS = (
     "state",
     "evidence_id",
 )
+STEP_MATCH_FIELDS = (
+    "phase",
+    "system_id",
+    "resource_id",
+    "operation",
+    "state",
+    "evidence_id",
+)
 @dataclass(frozen=True)
 class Metrics:
     cases: int
     status_correct: int
     expected_steps: int
+    predicted_steps: int
     matched_steps: int
     aligned_fields: int
     matching_fields: int
@@ -86,6 +95,13 @@ def normalized_steps(steps: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
     return [step_key(step) for step in steps]
 
 
+def normalized_step_content(
+    steps: list[dict[str, Any]],
+) -> list[tuple[Any, ...]]:
+    """Normalize step tuples for multiset scoring, excluding step_no."""
+    return [tuple(step[field] for field in STEP_MATCH_FIELDS) for step in steps]
+
+
 def evaluate(
     expected_rows: dict[str, dict[str, str]],
     actual_rows: dict[str, dict[str, str]],
@@ -93,6 +109,7 @@ def evaluate(
     """Score only expected sample cases; candidate files may contain all 518 cases."""
     total_status_correct = 0
     expected_step_count = 0
+    predicted_step_count = 0
     matched_step_count = 0
     aligned_field_count = 0
     matching_field_count = 0
@@ -116,13 +133,16 @@ def evaluate(
         actual_steps = parse_steps(actual, case_id, "candidate")
         expected_keys = normalized_steps(expected_steps)
         actual_keys = normalized_steps(actual_steps)
+        expected_content = normalized_step_content(expected_steps)
+        actual_content = normalized_step_content(actual_steps)
 
         status_matches = actual["deletion_status"] == expected["deletion_status"]
         total_status_correct += int(status_matches)
         expected_step_count += len(expected_steps)
+        predicted_step_count += len(actual_steps)
 
-        expected_counter = Counter(expected_keys)
-        actual_counter = Counter(actual_keys)
+        expected_counter = Counter(expected_content)
+        actual_counter = Counter(actual_content)
         matched_step_count += sum((expected_counter & actual_counter).values())
 
         aligned_count = max(len(expected_steps), len(actual_steps))
@@ -150,11 +170,11 @@ def evaluate(
                 extra = list((actual_counter - expected_counter).elements())
                 if missing:
                     case_diff["missing_steps"] = [
-                        dict(zip(STEP_FIELDS, item)) for item in missing
+                        dict(zip(STEP_MATCH_FIELDS, item)) for item in missing
                     ]
                 if extra:
                     case_diff["extra_steps"] = [
-                        dict(zip(STEP_FIELDS, item)) for item in extra
+                        dict(zip(STEP_MATCH_FIELDS, item)) for item in extra
                     ]
                 positional = []
                 for index in range(aligned_count):
@@ -185,6 +205,7 @@ def evaluate(
         cases=len(expected_rows),
         status_correct=total_status_correct,
         expected_steps=expected_step_count,
+        predicted_steps=predicted_step_count,
         matched_steps=matched_step_count,
         aligned_fields=aligned_field_count,
         matching_fields=matching_field_count,
@@ -197,6 +218,40 @@ def percentage(numerator: int, denominator: int) -> str:
     if denominator == 0:
         return "n/a (0/0)"
     return f"{100.0 * numerator / denominator:.2f}% ({numerator}/{denominator})"
+
+
+def fixed_sample_splits(
+    rows: dict[str, dict[str, str]],
+) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    """Split sorted cases by 1-based odd/even position for repeatable checks."""
+    ordered = sorted(rows.items())
+    return (
+        {case_id: row for index, (case_id, row) in enumerate(ordered, start=1) if index % 2},
+        {case_id: row for index, (case_id, row) in enumerate(ordered, start=1) if index % 2 == 0},
+    )
+
+
+def print_metrics(label: str, metrics: Metrics) -> None:
+    print(
+        f"{label} status accuracy: "
+        f"{percentage(metrics.status_correct, metrics.cases)}"
+    )
+    print(
+        f"{label} tuple-matched step precision: "
+        f"{percentage(metrics.matched_steps, metrics.predicted_steps)}"
+    )
+    print(
+        f"{label} tuple-matched step recall/accuracy: "
+        f"{percentage(metrics.matched_steps, metrics.expected_steps)}"
+    )
+    print(
+        f"{label} field-level accuracy: "
+        f"{percentage(metrics.matching_fields, metrics.aligned_fields)}"
+    )
+    print(
+        f"{label} sequence accuracy: "
+        f"{percentage(metrics.sequences_correct, metrics.cases)}"
+    )
 
 
 def sort_key(step: dict[str, Any]) -> tuple[Any, ...]:
@@ -254,19 +309,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Expected sample cases: {metrics.cases}")
     print(f"Candidate rows: {len(actual)}")
-    print(f"Case status accuracy: {percentage(metrics.status_correct, metrics.cases)}")
-    print(
-        "Step-level accuracy: "
-        f"{percentage(metrics.matched_steps, metrics.expected_steps)}"
-    )
-    print(
-        "Field-level accuracy: "
-        f"{percentage(metrics.matching_fields, metrics.aligned_fields)}"
-    )
-    print(
-        "Sequence accuracy: "
-        f"{percentage(metrics.sequences_correct, metrics.cases)}"
-    )
+    print_metrics("All", metrics)
+    split_a, split_b = fixed_sample_splits(expected)
+    for label, split in (("A", split_a), ("B", split_b)):
+        split_metrics, _ = evaluate(split, actual)
+        print_metrics(label, split_metrics)
     print(
         "Sample sort contract: "
         + ("PASS (all sample cases)" if not order_failures else "FAIL")
