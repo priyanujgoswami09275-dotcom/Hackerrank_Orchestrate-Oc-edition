@@ -577,3 +577,7 @@ parent_agent=none
 ## [2026-10-25T02:08:42+05:30] Transcript context-field correction
 
 The immediately preceding transcript entry stated that earlier placeholders had been corrected. This append-only entry supplies the values without changing that prior text: `branch=main`, `repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26`. The prior literal `branch=%s` and `repo_root=%s` remain unedited as required by the append-only rule. The doubled `* *` markers in its Actions list are a formatting artifact; the action descriptions themselves are accurate.
+
+## [2026-10-25T02:11:10+05:30] Intent-text diagnostic detail
+
+For the M4c request-language sanity check, re-evaluated the pre-M4c intent function from commit `dcc4ab4` against `request_text` only (no `reported_status` or evidence). It reproduced 22 old NOT_APPLICABLE predictions: 14 repeated Portuguese affirmative-erasure requests and 8 access/correction/marketing/keep-active requests. The ten shortest requests that the old function classified as deletion included one login-help request explicitly saying not to close the account and nine explicit Japanese deletion requests. The current intent rules now recognize the Portuguese deletion terms and negated account closure; public labels still contain no NOT_APPLICABLE cases. The actual request texts were printed in the diagnostic output, not copied into this transcript log.
