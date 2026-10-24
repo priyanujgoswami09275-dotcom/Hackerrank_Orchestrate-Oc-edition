@@ -19,10 +19,21 @@ class IntentTests(unittest.TestCase):
     def test_affirmative_deletion_requests_authorize(self) -> None:
         self.assertTrue(authorizes_deletion("Please delete my account and data."))
         self.assertTrue(authorizes_deletion("Por favor, elimina mis datos personales."))
+        self.assertTrue(
+            authorizes_deletion(
+                "Solicito a exclusão permanente da conta associada a este e-mail."
+            )
+        )
 
     def test_non_deletion_and_withdrawn_requests_do_not_authorize(self) -> None:
         self.assertFalse(authorizes_deletion("Please export a copy of my data."))
         self.assertFalse(authorizes_deletion("Do not delete my account; keep it active."))
+        self.assertFalse(
+            authorizes_deletion(
+                "I need help resetting the login. Do not close the account."
+            )
+        )
+        self.assertFalse(authorizes_deletion("Não quero a exclusão da minha conta."))
 
     def test_public_sample_intent_matches_expected_authorization(self) -> None:
         requests = read_csv_rows(ROOT / "dataset" / "sample_deletion_requests.csv")

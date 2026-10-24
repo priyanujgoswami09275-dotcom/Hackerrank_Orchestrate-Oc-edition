@@ -17,6 +17,8 @@ DELETION_PATTERNS = (
     r"\belimin(?:a|an|amos|ar|ado|ada|ación|ate|ation|are)\b",
     r"\bborr(?:ar|ado|ar)\b",
     r"\bexclu(?:ir|ir|sion)\b",
+    r"\bexclus(?:ã|a)o\b",
+    r"\bexcluir\b",
     r"\bapagar\b",
     r"\bcancell(?:are|ar|ation)\b",
     r"\bverwijder(?:en|ing)\b",
@@ -46,6 +48,10 @@ NEGATED_DELETION_PATTERNS = (
     r"\bcancel (?:my )?(?:deletion|erasure) request\b",
     r"\bchanged my mind about (?:deleting|erasing)\b",
     r"\bkeep my account active\b",
+    r"\bdo not close\b",
+    r"\bdon['’]?t close\b",
+    r"\bnever close\b",
+    r"\bn[aã]o (?:solicito|quero|peço|preciso) (?:a )?(?:exclus[aã]o|excluir|apagamento|apagar)\b",
 )
 
 NON_DELETION_ACTIONS = (
