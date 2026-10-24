@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import os
 import re
 import sqlite3
+import subprocess
+import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -133,9 +138,57 @@ RESOURCE_PATTERN = re.compile(
     r"\b(?:resource_id|resource|record_id|object_id)\s*[=:]\s*['\"]?([A-Za-z][A-Za-z0-9_-]*_[A-Za-z0-9_-]+)",
     re.I,
 )
+MEDIA_RESOURCE_PATTERN = re.compile(
+    r"\b(?:account|search|data_flow|analytics|export|support|backup|audit|"
+    r"tombstone|legal|marketing|order|email|cache|telemetry|profile)_"
+    r"[A-Za-z0-9-]+\b",
+    re.I,
+)
 KV_PATTERN = re.compile(
     r"""([A-Za-z][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s,]+))"""
 )
+MEDIA_EMAIL_PATTERN = re.compile(
+    r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I
+)
+MEDIA_USER_PATTERN = re.compile(r"\buser_[A-Za-z0-9-]+\b", re.I)
+
+MEDIA_CATEGORY_BY_PREFIX = {
+    "account": "USER_PROFILE",
+    "search": "SEARCH_INDEX_ENTRY",
+    "data_flow": "DATA_FLOW",
+    "analytics": "ANALYTICS_PROFILE",
+    "export": "USER_EXPORT",
+    "support": "SUPPORT_MESSAGE",
+    "backup": "BACKUP_ARCHIVE",
+    "audit": "SECURITY_AUDIT_LOG",
+    "tombstone": "ACCOUNT_TOMBSTONE",
+    "legal": "LEGAL_HOLD_RECORD",
+    "marketing": "MARKETING_PROFILE",
+    "order": "LEGAL_HOLD_RECORD",
+    "email": "EMAIL_DELIVERY_LOG",
+    "cache": "CACHE_ENTRY",
+    "telemetry": "PRODUCT_TELEMETRY",
+    "profile": "USER_PROFILE",
+}
+
+MEDIA_SYSTEM_BY_PREFIX = {
+    "account": "account_service",
+    "search": "search_service",
+    "data_flow": "integration_service",
+    "analytics": "analytics_platform",
+    "export": "export_service",
+    "support": "support_platform",
+    "backup": "backup_service",
+    "audit": "security_service",
+    "tombstone": "identity_service",
+    "legal": "legal_service",
+    "marketing": "marketing_platform",
+    "order": "order_service",
+    "email": "downstream_delivery_service",
+    "cache": "cache_service",
+    "telemetry": "analytics_platform",
+    "profile": "account_service",
+}
 
 
 @dataclass
@@ -146,6 +199,9 @@ class DatasetBundle:
     evidence_file_count: int = 0
     loaded_evidence_count: int = 0
     skipped_multimodal: tuple[str, ...] = ()
+    media_backends: tuple[str, ...] = ()
+    media_processed_count: int = 0
+    media_record_count: int = 0
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -547,11 +603,28 @@ def normalize_text_file(
     store: RecordStore, evidence_id: str, captured_at: str, path: Path
 ) -> int:
     text = path.read_text(encoding="utf-8", errors="replace")
+    return normalize_text_content(
+        store,
+        evidence_id=evidence_id,
+        captured_at=captured_at,
+        file_path=path.as_posix(),
+        text=text,
+    )
+
+
+def normalize_text_content(
+    store: RecordStore,
+    *,
+    evidence_id: str,
+    captured_at: str,
+    file_path: str,
+    text: str,
+) -> int:
     store.add_text(
         CapturedText(
             capture_id=evidence_id,
             captured_at=captured_at,
-            file_path=path.as_posix(),
+            file_path=file_path,
             text=text,
         )
     )
@@ -605,7 +678,494 @@ def normalize_text_file(
     return count
 
 
-def load_dataset(root: str | Path) -> DatasetBundle:
+def _cache_directory() -> Path:
+    configured = os.environ.get("PRAMAANTRACE_MEDIA_CACHE")
+    if configured:
+        return Path(configured).expanduser()
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "pramaantrace" / "media"
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "pramaantrace" / "media"
+
+
+def _eligible_media_entries(
+    manifest: Iterable[Mapping[str, str]],
+    request_rows: Iterable[Mapping[str, str]],
+) -> list[Mapping[str, str]]:
+    cutoffs = [
+        parse_timestamp(row["audit_at"])
+        for row in request_rows
+        if row.get("audit_at")
+    ]
+    if not cutoffs:
+        return []
+    latest_cutoff = max(cutoffs)
+    return [
+        entry
+        for entry in manifest
+        if Path(entry["file_path"]).suffix.casefold()
+        in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".pdf"}
+        and parse_timestamp(entry["captured_at"]) <= latest_cutoff
+    ]
+
+
+def _vision_ocr(assets: list[Path]) -> tuple[dict[str, dict[str, Any]], str]:
+    if not assets:
+        return {}, ""
+    script = Path(__file__).with_name("vision_ocr.swift")
+    if sys.platform == "darwin":
+        executable = os.environ.get("SWIFT_EXECUTABLE", "swift")
+        if not shutil_which(executable):
+            return {}, ""
+        completed = subprocess.run(
+            [executable, str(script), *map(str, assets)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode:
+            raise RuntimeError(
+                "Vision OCR failed: "
+                + (completed.stderr.strip() or f"exit {completed.returncode}")
+            )
+        try:
+            results = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Vision OCR returned invalid JSON") from exc
+        return {
+            str(Path(item["path"]).resolve()): {
+                "text": str(item.get("text", "")),
+                "lines": item.get("lines", []),
+            }
+            for item in results
+        }, "Apple Vision"
+
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return {}, ""
+    try:
+        pytesseract.get_tesseract_version()
+    except Exception:
+        return {}, ""
+    extracted: dict[str, dict[str, Any]] = {}
+    for path in assets:
+        if path.suffix.casefold() == ".pdf":
+            continue
+        with Image.open(path) as image:
+            extracted[str(path.resolve())] = {
+                "text": pytesseract.image_to_string(image),
+                "lines": [],
+            }
+    return extracted, "Tesseract"
+
+
+def shutil_which(executable: str) -> str | None:
+    # Kept small and local so the loader has no optional third-party dependency.
+    from shutil import which
+
+    return which(executable)
+
+
+def _pdf_text(path: Path) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return ""
+    reader = PdfReader(path)
+    return "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+
+
+def _media_resource_records(
+    store: RecordStore,
+    *,
+    evidence_id: str,
+    captured_at: str,
+    text: str,
+    lines: Iterable[Mapping[str, Any]] = (),
+) -> int:
+    """Normalize strongly associated resource/identifier mentions from OCR text.
+
+    A media-derived record is emitted only when a resource token is close to
+    at least one explicit email or stable user reference in the same artifact.
+    The complete OCR text is also retained as gated evidence text.
+    """
+    line_list = [
+        line
+        for line in lines
+        if isinstance(line, Mapping) and isinstance(line.get("text"), str)
+    ]
+    located_resources: list[dict[str, Any]] = []
+    located_identifiers: list[dict[str, Any]] = []
+    if line_list:
+        for line in line_list:
+            line_text = str(line["text"])
+            x = float(line.get("x", 0.0))
+            y = float(line.get("y", 0.0))
+            width = float(line.get("width", 0.0))
+            height = float(line.get("height", 0.0))
+            for match in MEDIA_RESOURCE_PATTERN.finditer(line_text):
+                located_resources.append(
+                    {
+                        "resource_id": match.group(),
+                        "x": x + width / 2,
+                        "y": y + height / 2,
+                        "line": line_text,
+                    }
+                )
+            for pattern, key in (
+                (MEDIA_EMAIL_PATTERN, "emails"),
+                (MEDIA_USER_PATTERN, "user_ids"),
+            ):
+                for match in pattern.finditer(line_text):
+                    located_identifiers.append(
+                        {
+                            "kind": key,
+                            "value": match.group().casefold(),
+                            "x": x + width / 2,
+                            "y": y + height / 2,
+                            "line": line_text,
+                        }
+                    )
+        resource_groups: dict[str, list[dict[str, Any]]] = {}
+        for occurrence in located_resources:
+            resource_groups.setdefault(
+                occurrence["resource_id"].casefold(), []
+            ).append(occurrence)
+        resources = [
+            min(
+                occurrences,
+                key=lambda occurrence: min(
+                    (
+                        abs(candidate["y"] - occurrence["y"])
+                        + 0.12 * abs(candidate["x"] - occurrence["x"])
+                        for candidate in located_identifiers
+                    ),
+                    default=float("inf"),
+                ),
+            )
+            for _, occurrences in sorted(resource_groups.items())
+        ]
+    else:
+        emails = list(MEDIA_EMAIL_PATTERN.finditer(text))
+        users = list(MEDIA_USER_PATTERN.finditer(text))
+        identifiers = sorted(
+            [
+                {
+                    "position": match.start(),
+                    "kind": "emails",
+                    "value": match.group().casefold(),
+                }
+                for match in emails
+            ]
+            + [
+                {
+                    "position": match.start(),
+                    "kind": "user_ids",
+                    "value": match.group().casefold(),
+                }
+                for match in users
+            ],
+            key=lambda item: item["position"],
+        )
+        resources = [
+            {
+                "resource_id": match.group(),
+                "position": match.start(),
+            }
+            for match in MEDIA_RESOURCE_PATTERN.finditer(text)
+        ]
+    count = 0
+    seen_resources = set()
+    for occurrence in resources:
+        resource_id = occurrence["resource_id"]
+        if resource_id.casefold() in seen_resources:
+            continue
+        seen_resources.add(resource_id.casefold())
+        if line_list:
+            resource_x = occurrence["x"]
+            resource_y = occurrence["y"]
+            if not located_identifiers:
+                continue
+            scores = [
+                abs(candidate["y"] - resource_y)
+                + 0.12 * abs(candidate["x"] - resource_x)
+                for candidate in located_identifiers
+            ]
+            best_score = min(scores)
+            if best_score > 0.08:
+                continue
+            nearest_items = [
+                candidate
+                for candidate, score in zip(located_identifiers, scores)
+                if score <= best_score + 0.004
+            ]
+            # Use the table row around the resource as evidence context; this
+            # avoids joining adjacent users merely because they occur on one
+            # screenshot.
+            context = "\n".join(
+                str(line["text"])
+                for line in line_list
+                if abs(
+                    float(line.get("y", 0.0))
+                    + float(line.get("height", 0.0)) / 2
+                    - resource_y
+                )
+                <= 0.018
+            )
+            local_identifiers = {
+                key: tuple(
+                    sorted(
+                        {
+                            item["value"]
+                            for item in nearest_items
+                            if item["kind"] == key
+                        }
+                    )
+                )
+                for key in ("emails", "user_ids")
+            }
+        else:
+            nearest = min(
+                identifiers,
+                key=lambda item: abs(item["position"] - occurrence["position"]),
+                default=None,
+            )
+            # Avoid inferring membership from a whole page when unrelated rows
+            # are listed together. Text proximity is only a fallback when the
+            # extractor does not expose layout coordinates.
+            if (
+                nearest is None
+                or abs(nearest["position"] - occurrence["position"]) > 300
+            ):
+                continue
+            left = max(
+                0,
+                min(occurrence["position"], nearest["position"]) - 120,
+            )
+            right = min(
+                len(text),
+                max(
+                    occurrence["position"] + len(resource_id),
+                    nearest["position"] + len(nearest["value"]),
+                )
+                + 120,
+            )
+            context = text[left:right]
+            local_identifiers = {
+                key: tuple(
+                    sorted(
+                        {
+                            item["value"]
+                            for item in identifiers
+                            if item["kind"] == key
+                            and left <= item["position"] < right
+                        }
+                    )
+                )
+                for key in ("emails", "user_ids")
+            }
+        prefix = next(
+            (
+                candidate
+                for candidate in sorted(
+                    MEDIA_CATEGORY_BY_PREFIX, key=len, reverse=True
+                )
+                if resource_id.casefold().startswith(candidate + "_")
+            ),
+            "",
+        )
+        category = MEDIA_CATEGORY_BY_PREFIX.get(prefix)
+        system_id = MEDIA_SYSTEM_BY_PREFIX.get(prefix)
+        lowered_document = text.casefold()
+        if (
+            prefix == "support"
+            and "attachment" in lowered_document
+            and re.search(r"\bfile\s+[\w .-]+\.(?:pdf|png|jpe?g)\b", text, re.I)
+            and re.search(r"\buploader\s+customer\b", text, re.I)
+        ):
+            category = "SUPPORT_ATTACHMENT"
+        if not category or not system_id:
+            continue
+        attrs: dict[str, Any] = {
+            "resource_id": resource_id,
+            "media_context": context,
+            **{
+                key[:-1] if key.endswith("s") else key: values[0]
+                for key, values in local_identifiers.items()
+                if values
+            },
+        }
+        if category == "SUPPORT_ATTACHMENT":
+            owner_values = local_identifiers.get("emails") or local_identifiers.get(
+                "user_ids"
+            )
+            if owner_values:
+                attrs["uploaded_by"] = owner_values[0]
+            attrs["shared"] = bool(
+                re.search(r"\bshared\s+(?:with|among|by)\b", text, re.I)
+            )
+        if category == "DATA_FLOW":
+            snippet = context.casefold()
+            if any(token in snippet for token in ("continuous sync", "continuous", "enabled", "active")):
+                attrs["enabled"] = True
+            elif any(token in snippet for token in ("disabled", "paused", "inactive", "stopped")):
+                attrs["enabled"] = False
+        elif category == "BACKUP_ARCHIVE":
+            snippet = context.casefold()
+            if any(token in snippet for token in ("restore allowed: yes", "restore permitted: yes", "restore access: allowed")):
+                attrs["restore_allowed"] = True
+            elif any(token in snippet for token in ("restore blocked", "restore allowed: no", "restore access: blocked")):
+                attrs["restore_allowed"] = False
+        store.add_record(
+            NormalizedRecord(
+                capture_id=evidence_id,
+                captured_at=captured_at,
+                topology="media_observation",
+                system_id=system_id,
+                resource_id=resource_id,
+                category=category,
+                identifiers={
+                    key: values for key, values in local_identifiers.items() if values
+                },
+                attributes=attrs,
+            )
+        )
+        count += 1
+    return count
+
+
+def load_media_evidence(
+    *,
+    dataset: Path,
+    manifest: Iterable[Mapping[str, str]],
+    request_rows: Iterable[Mapping[str, str]],
+    store: RecordStore,
+    cache_dir: Path | None = None,
+) -> tuple[int, int, tuple[str, ...], tuple[str, ...]]:
+    """Read only cutoff-eligible media, caching extracted text outside the repo."""
+    entries = _eligible_media_entries(manifest, request_rows)
+    if not entries:
+        return 0, 0, (), ()
+    cache = cache_dir or _cache_directory()
+    cache.mkdir(parents=True, exist_ok=True)
+
+    uncached: list[tuple[Mapping[str, str], Path, str, Path]] = []
+    text_by_id: dict[
+        str, tuple[str, str, Path, list[dict[str, Any]]]
+    ] = {}
+    for entry in sorted(entries, key=lambda row: row["file_id"]):
+        source = (dataset / entry["file_path"]).resolve()
+        if dataset.resolve() not in source.parents:
+            raise ValueError(f"{entry['file_id']}: media path escapes dataset/")
+        if not source.is_file():
+            raise FileNotFoundError(f"{entry['file_id']}: missing media {source.name}")
+        # Files are opened only after the manifest time is known eligible for
+        # at least one requested audit cutoff.
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        cached_path = cache / f"{digest}.json"
+        if cached_path.is_file():
+            try:
+                cached = json.loads(cached_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                cached = {}
+            if cached.get("sha256") == digest and isinstance(cached.get("text"), str):
+                text_by_id[entry["file_id"]] = (
+                    cached["text"],
+                    cached.get("backend", "cache"),
+                    source,
+                    cached.get("lines", []),
+                )
+                continue
+        uncached.append((entry, source, digest, cached_path))
+
+    pending_ocr: list[Path] = []
+    for item in uncached:
+        entry, source, digest, cached_path = item
+        if source.suffix.casefold() == ".pdf":
+            extracted = _pdf_text(source)
+            if extracted.strip():
+                text_by_id[entry["file_id"]] = (extracted, "pypdf", source, [])
+                cache_payload = {
+                    "sha256": digest,
+                    "backend": "pypdf",
+                    "text": extracted,
+                    "lines": [],
+                }
+                cached_path.write_text(
+                    json.dumps(cache_payload, ensure_ascii=False, sort_keys=True),
+                    encoding="utf-8",
+                )
+                continue
+        pending_ocr.append(source)
+
+    ocr_results, ocr_backend = (
+        _vision_ocr(pending_ocr) if pending_ocr else ({}, "")
+    )
+    unavailable = []
+    for item in uncached:
+        entry, source, digest, cached_path = item
+        key = str(source.resolve())
+        if key in text_by_id and source.suffix.casefold() == ".pdf":
+            continue
+        ocr_result = ocr_results.get(key)
+        if ocr_result is None:
+            unavailable.append(entry["file_id"])
+            continue
+        text = str(ocr_result.get("text", ""))
+        lines = list(ocr_result.get("lines", []))
+        text_by_id[entry["file_id"]] = (text, ocr_backend, source, lines)
+        cached_path.write_text(
+            json.dumps(
+                {
+                    "sha256": digest,
+                    "backend": ocr_backend,
+                    "text": text,
+                    "lines": lines,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+
+    record_count = 0
+    backends = set()
+    for entry in sorted(entries, key=lambda row: row["file_id"]):
+        result = text_by_id.get(entry["file_id"])
+        if result is None:
+            continue
+        text, backend, source, lines = result
+        backends.add(backend)
+        store.add_text(
+            CapturedText(
+                capture_id=entry["file_id"],
+                captured_at=entry["captured_at"],
+                file_path=entry["file_path"],
+                text=text,
+            )
+        )
+        record_count += _media_resource_records(
+            store,
+            evidence_id=entry["file_id"],
+            captured_at=entry["captured_at"],
+            text=text,
+            lines=lines,
+        )
+    return (
+        record_count,
+        len(text_by_id),
+        tuple(sorted(unavailable)),
+        tuple(sorted(backends)),
+    )
+
+
+def load_dataset(
+    root: str | Path,
+    *,
+    media_request_rows: Iterable[Mapping[str, str]] | None = None,
+    include_media: bool = True,
+) -> DatasetBundle:
     root = Path(root).resolve()
     dataset = root / "dataset"
     if not dataset.is_dir():
@@ -646,8 +1206,8 @@ def load_dataset(root: str | Path) -> DatasetBundle:
         elif suffix in {".log", ".txt"}:
             normalize_text_file(store, entry["file_id"], captured_at, path)
             loaded_count += 1
-        elif suffix in {".png", ".jpg", ".jpeg", ".pdf"}:
-            skipped.append(entry["file_id"])
+        elif suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".pdf"}:
+            continue
         else:
             raise ValueError(
                 f"{entry['file_id']}: unsupported evidence file type {suffix!r}"
@@ -655,6 +1215,22 @@ def load_dataset(root: str | Path) -> DatasetBundle:
         if suffix in {".sql", ".json"}:
             loaded_count += 1
 
+    media_requests = (
+        list(media_request_rows)
+        if media_request_rows is not None
+        else tables["deletion_requests.csv"]
+    )
+    if include_media:
+        media_record_count, media_processed_count, skipped_media, media_backends = load_media_evidence(
+            dataset=dataset,
+            manifest=manifest,
+            request_rows=media_requests,
+            store=store,
+        )
+    else:
+        media_record_count, media_processed_count = 0, 0
+        skipped_media, media_backends = (), ()
+    skipped.extend(skipped_media)
     return DatasetBundle(
         root=root,
         store=store,
@@ -662,4 +1238,7 @@ def load_dataset(root: str | Path) -> DatasetBundle:
         evidence_file_count=len(manifest),
         loaded_evidence_count=loaded_count,
         skipped_multimodal=tuple(sorted(skipped)),
+        media_backends=media_backends,
+        media_processed_count=media_processed_count,
+        media_record_count=media_record_count,
     )

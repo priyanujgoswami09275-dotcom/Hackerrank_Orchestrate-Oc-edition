@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 CODE = Path(__file__).resolve().parents[1]
 ROOT = CODE.parent
@@ -11,6 +12,7 @@ sys.path.insert(0, str(CODE))
 
 from pramaantrace.loader import (  # noqa: E402
     extract_identifiers,
+    load_media_evidence,
     load_dataset,
     normalize_sql_file,
 )
@@ -23,6 +25,91 @@ from pramaantrace.store import (  # noqa: E402
 
 
 class RecordStoreTests(unittest.TestCase):
+    def test_media_captured_after_cutoff_is_not_opened(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = RecordStore()
+            # The file is intentionally absent. A future capture must be
+            # rejected from its manifest timestamp before any file access.
+            count, processed, skipped, backends = load_media_evidence(
+                dataset=root,
+                manifest=[
+                    {
+                        "file_id": "fixture-media",
+                        "file_path": "evidence/future-image.png",
+                        "captured_at": "2026-05-03T00:00:00Z",
+                    }
+                ],
+                request_rows=[{"audit_at": "2026-05-02T00:00:00Z"}],
+                store=store,
+                cache_dir=root / "cache",
+            )
+            self.assertEqual(
+                (count, processed, skipped, backends),
+                (0, 0, (), ()),
+            )
+            self.assertFalse((root / "cache").exists())
+            self.assertIsNone(
+                store.read_text(
+                    audit_at="2026-05-02T00:00:00Z",
+                    capture_id="fixture-media",
+                )
+            )
+
+    def test_media_text_cache_avoids_a_second_ocr_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / "dataset"
+            media = dataset / "evidence" / "fixture.png"
+            media.parent.mkdir(parents=True)
+            media.write_bytes(b"fixture bytes")
+            entry = {
+                "file_id": "fixture-media",
+                "file_path": "evidence/fixture.png",
+                "captured_at": "2026-05-01T00:00:00Z",
+            }
+            request = {"audit_at": "2026-05-02T00:00:00Z"}
+            output = {
+                str(media.resolve()): {
+                    "text": "fixture-media text",
+                    "lines": [],
+                }
+            }
+            cache = root / "external-cache"
+            with patch(
+                "pramaantrace.loader._vision_ocr",
+                return_value=(output, "fixture OCR"),
+            ) as ocr:
+                first_store = RecordStore()
+                first = load_media_evidence(
+                    dataset=dataset,
+                    manifest=[entry],
+                    request_rows=[request],
+                    store=first_store,
+                    cache_dir=cache,
+                )
+                self.assertEqual(first[3], ("fixture OCR",))
+                ocr.assert_called_once()
+                ocr.reset_mock()
+
+                second_store = RecordStore()
+                second = load_media_evidence(
+                    dataset=dataset,
+                    manifest=[entry],
+                    request_rows=[request],
+                    store=second_store,
+                    cache_dir=cache,
+                )
+                self.assertEqual(second[3], ("fixture OCR",))
+                ocr.assert_not_called()
+                self.assertEqual(
+                    second_store.read_text(
+                        audit_at=request["audit_at"],
+                        capture_id="fixture-media",
+                    ).text,
+                    "fixture-media text",
+                )
+
     def test_null_sentinels_are_not_indexed_as_identifiers(self) -> None:
         identifiers = extract_identifiers(
             {
@@ -102,10 +189,31 @@ class DatasetLoaderTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.bundle = load_dataset(ROOT)
 
-    def test_loads_every_structured_artifact_and_defers_multimodal(self) -> None:
+    def test_loads_structured_and_cutoff_eligible_media_artifacts(self) -> None:
         self.assertEqual(self.bundle.evidence_file_count, 94)
         self.assertEqual(self.bundle.loaded_evidence_count, 79)
-        self.assertEqual(len(self.bundle.skipped_multimodal), 15)
+        self.assertEqual(self.bundle.skipped_multimodal, ())
+        self.assertEqual(self.bundle.media_processed_count, 15)
+        self.assertGreater(self.bundle.media_record_count, 0)
+        self.assertIn("Apple Vision", self.bundle.media_backends)
+        self.assertIn("pypdf", self.bundle.media_backends)
+        media_entries = [
+            row
+            for row in self.bundle.tables["evidence_files.csv"]
+            if Path(row["file_path"]).suffix.casefold()
+            in {".png", ".pdf", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"}
+        ]
+        self.assertEqual(len(media_entries), 15)
+        self.assertTrue(
+            all(
+                self.bundle.store.read_text(
+                    audit_at="2026-10-24T00:00:00Z",
+                    capture_id=row["file_id"],
+                )
+                is not None
+                for row in media_entries
+            )
+        )
         self.assertEqual(
             len(self.bundle.tables["deletion_requests.csv"]),
             518,

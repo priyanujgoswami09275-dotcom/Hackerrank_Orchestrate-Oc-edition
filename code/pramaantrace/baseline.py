@@ -320,6 +320,7 @@ def assess_case(
     remediations: list[dict[str, str]] = []
     future_verifications: list[dict[str, str]] = []
     compliant_verifications: list[dict[str, str]] = []
+    missing_required_retention = False
 
     for system_id, resource_id, category in sorted(keys):
         records = _candidate_records(
@@ -562,8 +563,14 @@ def assess_case(
                     "evidence_id": state.evidence_id,
                 }
             )
+        elif action == "RETAIN" and state.state == "ABSENT":
+            # The contract requires retained records to remain available, but
+            # its allowed operations have no finding/remediation pair for a
+            # missing retained record. Preserve the required INCOMPLETE verdict
+            # without inventing a new operation or mislabeling the absence.
+            missing_required_retention = True
 
-    if findings:
+    if findings or missing_required_retention:
         return {
             "case_id": request["case_id"],
             "deletion_status": "INCOMPLETE",

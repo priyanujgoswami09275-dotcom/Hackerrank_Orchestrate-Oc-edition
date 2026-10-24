@@ -33,13 +33,22 @@ def main(argv: list[str] | None = None) -> int:
         default=ROOT / "dataset" / "deletion_requests.csv",
         help="request CSV to process (default: all evaluation requests)",
     )
+    parser.add_argument(
+        "--disable-media",
+        action="store_true",
+        help="run the structured-only baseline for media impact comparisons",
+    )
     args = parser.parse_args(argv)
 
-    bundle = load_dataset(ROOT)
     requests_path = args.requests
     if not requests_path.is_absolute():
         requests_path = ROOT / requests_path
     requests = read_csv_rows(requests_path)
+    bundle = load_dataset(
+        ROOT,
+        media_request_rows=requests,
+        include_media=not args.disable_media,
+    )
     bundle.tables["deletion_requests.csv"] = requests
     rows = run_baseline(bundle)
     validate_rows(
@@ -62,6 +71,27 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     print("Validation: PASS")
+    print(
+        "Media reader: "
+        + (
+            ", ".join(bundle.media_backends)
+            if bundle.media_backends
+            else (
+                "disabled by request"
+                if args.disable_media
+                else "UNVERIFIED (no media extraction backend available)"
+            )
+        )
+    )
+    print(
+        f"Media assets extracted: {bundle.media_processed_count}; "
+        f"normalized records: {bundle.media_record_count}"
+    )
+    if bundle.skipped_multimodal:
+        print(
+            "Media handling: PARTIAL/UNVERIFIED; "
+            f"{len(bundle.skipped_multimodal)} cutoff-eligible files not extracted"
+        )
     return 0
 
 
