@@ -20,6 +20,14 @@
 - Four cited complete-case absence steps omit the resource from their artifact: three cite SQL table snapshots and one cites a JSON account-service collection snapshot. Six additional cited absence steps explicitly contain the resource identifier alongside a not-found/zero-row result. The sample includes a later, empty inventory capture that is consistent with the earlier SQL omission citation for one case; therefore “latest snapshot” is a useful selection preference, but the sample does not establish it as a strict requirement for every absence citation. A later contradictory snapshot must not be ignored.
 - No changes have been made under `dataset/`.
 
+## M2 — structured evidence loader and gated store
+
+- Added explicit SQLite table adapters for the four observed SQL layouts: account-profile tables, normalized inventory tables, packed `record_json` snapshot tables across primary/replica topologies, and the search-primary table. Unknown SQL tables fail loudly.
+- Loaded all 79 structured evidence artifacts (24 SQL, 28 JSON, 26 logs, and 1 text file); deferred the 15 image/PDF artifacts for the later multimodal pass.
+- Normalized 3,094 records and preserved 469 point-in-time listing scopes, including empty listings needed to support evidence-backed absence checks.
+- Record queries, listing-scope queries, text reads, and capture enumeration all require `audit_at`; tests verify post-cutoff records and text are not returned.
+- Verification run: `python3 -m unittest discover -s code/tests -v` passed all 11 tests. SQL adapter coverage was exercised across all 24 SQL evidence files, and an unmapped-table fixture was confirmed to fail loudly.
+
 ## What was tried or reverted
 
 - No implementation approach has been reverted.
