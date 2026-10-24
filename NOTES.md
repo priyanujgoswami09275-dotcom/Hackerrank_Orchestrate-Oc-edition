@@ -28,6 +28,14 @@
 - Record queries, listing-scope queries, text reads, and capture enumeration all require `audit_at`; tests verify post-cutoff records and text are not returned.
 - Verification run: `python3 -m unittest discover -s code/tests -v` passed all 11 tests. SQL adapter coverage was exercised across all 24 SQL evidence files, and an unmapped-table fixture was confirmed to fail loudly.
 
+## M3 — temporal identity resolver
+
+- Added `code/pramaantrace/identity.py`. It replays identity events only through `audit_at`, uses a current identity snapshot only when its `updated_at` is not later than the cutoff, normalizes email/phone values, and derives SHA-256 hashes for visible emails.
+- Customer references can be joined only through records returned by the temporally gated evidence store.
+- Reverified current snapshot email hashes: 850/850 match SHA-256 of normalized email.
+- Evaluation request coverage: 518/518 emails resolve at their respective `audit_at`; 100 are historical-email-only matches; no ambiguous request-email matches were observed.
+- Verification run: `python3 -m unittest discover -s code/tests -v` passed all 16 tests, including future-identity cutoff, historical aliases, hash coverage, and cutoff-gated customer-reference joins.
+
 ## What was tried or reverted
 
 - No implementation approach has been reverted.
