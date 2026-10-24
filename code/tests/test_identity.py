@@ -14,6 +14,27 @@ from pramaantrace.store import NormalizedRecord, RecordStore  # noqa: E402
 
 
 class IdentityResolverTests(unittest.TestCase):
+    def test_null_customer_reference_is_not_a_subject_identifier(self) -> None:
+        resolver = IdentityResolver(
+            [
+                {
+                    "user_id": "fixture_user",
+                    "name": "Fixture Name",
+                    "email": "fixture@example.test",
+                    "phone": "",
+                    "email_hash": "",
+                    "customer_reference": "null",
+                    "updated_at": "2026-05-01T00:00:00Z",
+                }
+            ],
+            [],
+        )
+        identity = resolver.identifiers_for(
+            "fixture_user", "2026-05-02T00:00:00Z"
+        )
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity.customer_references, ())
+
     def test_future_snapshot_and_audit_events_do_not_leak_backward(self) -> None:
         resolver = IdentityResolver(
             [

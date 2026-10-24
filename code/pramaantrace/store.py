@@ -51,6 +51,7 @@ class RecordScope:
     topology: str
     system_id: str
     category: str
+    complete_listing: bool = False
 
 
 class RecordStore:
@@ -161,6 +162,7 @@ class RecordStore:
         system_id: str | None = None,
         category: str | None = None,
         topology: str | None = None,
+        complete_listing: bool | None = None,
     ) -> list[RecordScope]:
         cutoff = parse_timestamp(audit_at)
         result = [
@@ -171,6 +173,10 @@ class RecordStore:
             and (system_id is None or scope.system_id == system_id)
             and (category is None or scope.category == category)
             and (topology is None or scope.topology == topology)
+            and (
+                complete_listing is None
+                or scope.complete_listing == complete_listing
+            )
         ]
         return sorted(
             result,

@@ -23,7 +23,7 @@ cd hackerrank-orchestrate-october26
 
 Start your AI coding tool from the **repository root** so it automatically reads [`AGENTS.md`](./AGENTS.md) and logs your session turns to `log.txt` in the root directory.
 
-Build your solution in `code/main.py`, or use another language and document its setup and run command clearly in your README.
+The untouched starter file `code/main.py` is empty. The deterministic baseline runner is `code/run.py`; it is separate so the original starter remains available for reference.
 
 Your solution must:
 
@@ -31,10 +31,17 @@ Your solution must:
 - Generate one prediction row for every request in `dataset/deletion_requests.csv`
 - Write the final predictions to `output.csv` in the repository root
 
-Run the starter Python entry point with:
+Run the baseline for all evaluation cases with:
 
 ```bash
-python3 code/main.py
+python3 code/run.py
+```
+
+To generate baseline predictions for the public sample and score them:
+
+```bash
+python3 code/run.py --requests dataset/sample_deletion_requests.csv --output /tmp/pramaantrace-sample.csv
+python3 code/evaluation/harness.py /tmp/pramaantrace-sample.csv
 ```
 
 The blank template at `dataset/output.csv` is provided as a reference. Your final generated file for submission must be the root-level `output.csv`.
@@ -86,11 +93,11 @@ The final file must contain 518 data rows sorted by `case_id` (plus the header r
 - correct policy application and evidence references; and
 - completeness and ordering of remediation and verification steps.
 
-Your `code.zip` must include:
+Per `AGENTS.md`, your `code.zip` must include these reports at the archive root under `evaluation/` (the harness source remains in `code/evaluation/`):
 
 ```text
-code/evaluation/evaluation_report.md
-code/evaluation/usage_report.md
+evaluation/evaluation_report.md
+evaluation/usage_report.md
 ```
 
 - `evaluation_report.md` must cover case, row, field, and sequence accuracy, at least three additional evaluation cases created by you, failures found, and improvements made.

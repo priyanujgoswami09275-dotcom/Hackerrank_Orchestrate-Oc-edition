@@ -170,7 +170,7 @@ def extract_identifiers(attributes: Mapping[str, Any], raw_text: str = "") -> di
         destination = IDENTIFIER_KEYS.get(key)
         if destination and isinstance(value, (str, int, float)):
             text = str(value).strip()
-            if text:
+            if text and text.casefold() not in {"null", "none", "nan", "n/a", "unknown"}:
                 found.setdefault(destination, set()).add(text)
     for email in EMAIL_PATTERN.findall(raw_text):
         found.setdefault("emails", set()).add(email)
@@ -332,6 +332,7 @@ def normalize_sql_file(
                             category=COLLECTION_CATEGORY.get(
                                 str(collection).casefold(), "OPERATIONAL_EVENT"
                             ),
+                            complete_listing=True,
                         )
                     )
             elif system_id is not None and category is not None:
@@ -342,6 +343,7 @@ def normalize_sql_file(
                         topology=topology_for_sql(path, table),
                         system_id=system_id,
                         category=category,
+                        complete_listing=True,
                     )
                 )
             for values in connection.execute(f'SELECT * FROM "{table}"'):
@@ -409,12 +411,14 @@ def _json_record_context(
     store: RecordStore,
     inherited_system: str | None = None,
     inherited_collection: str | None = None,
+    inherited_topology: str = "json_record_snapshot",
     parent_key: str = "",
 ) -> int:
     count = 0
     if isinstance(value, dict):
         current_system = inherited_system
         current_collection = inherited_collection
+        current_topology = inherited_topology
         for key in ("system_id", "origin_system", "data_store", "service"):
             item = value.get(key)
             if isinstance(item, str) and item.strip():
@@ -438,7 +442,7 @@ def _json_record_context(
                     NormalizedRecord(
                         capture_id=evidence_id,
                         captured_at=captured_at,
-                        topology="json_snapshot",
+                        topology=current_topology,
                         system_id=system_id,
                         resource_id=resource_id,
                         category=category,
@@ -451,11 +455,15 @@ def _json_record_context(
         for key, child in value.items():
             child_system = current_system
             child_collection = current_collection
+            child_topology = current_topology
             if parent_key == "service_exports":
                 child_system = str(key)
+                child_topology = "json_service_export"
             if key in COLLECTION_CATEGORY:
                 child_collection = key
                 child_system = child_system or COLLECTION_SYSTEM.get(key)
+                if key == "profile_lookups":
+                    child_topology = "service_readback"
             elif key in ("index_queries", "documents") and child_collection is None:
                 child_collection = "customer_search_documents"
             if key == "records" and child_system and child_collection:
@@ -463,11 +471,13 @@ def _json_record_context(
                     RecordScope(
                         capture_id=evidence_id,
                         captured_at=captured_at,
-                        topology="json_snapshot",
+                        topology=current_topology,
                         system_id=child_system,
                         category=COLLECTION_CATEGORY.get(
                             child_collection.casefold(), "OPERATIONAL_EVENT"
                         ),
+                        complete_listing=current_topology
+                        in {"json_snapshot_bundle", "json_record_snapshot"},
                     )
                 )
             elif (
@@ -479,9 +489,11 @@ def _json_record_context(
                     RecordScope(
                         capture_id=evidence_id,
                         captured_at=captured_at,
-                        topology="json_service_export",
+                        topology=child_topology,
                         system_id=child_system,
                         category=COLLECTION_CATEGORY[key],
+                        complete_listing=child_topology
+                        in {"json_snapshot_bundle", "json_record_snapshot"},
                     )
                 )
             count += _json_record_context(
@@ -491,6 +503,7 @@ def _json_record_context(
                 store=store,
                 inherited_system=child_system,
                 inherited_collection=child_collection,
+                inherited_topology=child_topology,
                 parent_key=str(key),
             )
     elif isinstance(value, list):
@@ -502,6 +515,7 @@ def _json_record_context(
                 store=store,
                 inherited_system=inherited_system,
                 inherited_collection=inherited_collection,
+                inherited_topology=inherited_topology,
                 parent_key=parent_key,
             )
     return count
@@ -519,6 +533,13 @@ def normalize_json_file(
         evidence_id=evidence_id,
         captured_at=captured_at,
         store=store,
+        inherited_topology=(
+            "json_snapshot_bundle"
+            if isinstance(document, dict) and "snapshots" in document
+            else "json_service_export"
+            if isinstance(document, dict) and "service_exports" in document
+            else "json_record_snapshot"
+        ),
     )
 
 

@@ -14,6 +14,7 @@ from .store import RecordStore, normalize_identifier, parse_timestamp
 
 PHONE_DIGITS = re.compile(r"\D+")
 EMAIL_HASH = re.compile(r"^[a-f0-9]{64}$", re.I)
+EMPTY_IDENTIFIERS = {"", "null", "none", "nan", "n/a", "unknown"}
 
 
 def normalize_email(value: str) -> str:
@@ -116,16 +117,16 @@ class IdentityResolver:
             field_name = event["field_name"]
             if field_name in field_names:
                 for value in (event["old_value"], event["new_value"]):
-                    if value:
+                    if value.strip().casefold() not in EMPTY_IDENTIFIERS:
                         field_names[field_name].add(value.strip())
         if snapshot_visible:
             for field_name in field_names:
                 value = row.get(field_name, "").strip()
-                if value:
+                if value.casefold() not in EMPTY_IDENTIFIERS:
                     field_names[field_name].add(value)
         for field_name in field_names:
             value = self._field_state_as_of(user_id, field_name, audit_at)
-            if value:
+            if value.strip().casefold() not in EMPTY_IDENTIFIERS:
                 field_names[field_name].add(value.strip())
 
         emails = {normalize_email(value) for value in field_names["email"] if value}

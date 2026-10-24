@@ -9,7 +9,11 @@ CODE = Path(__file__).resolve().parents[1]
 ROOT = CODE.parent
 sys.path.insert(0, str(CODE))
 
-from pramaantrace.loader import load_dataset, normalize_sql_file  # noqa: E402
+from pramaantrace.loader import (  # noqa: E402
+    extract_identifiers,
+    load_dataset,
+    normalize_sql_file,
+)
 from pramaantrace.store import (  # noqa: E402
     CapturedText,
     NormalizedRecord,
@@ -19,6 +23,16 @@ from pramaantrace.store import (  # noqa: E402
 
 
 class RecordStoreTests(unittest.TestCase):
+    def test_null_sentinels_are_not_indexed_as_identifiers(self) -> None:
+        identifiers = extract_identifiers(
+            {
+                "email": "null",
+                "customer_reference": "NULL",
+                "user_id": "fixture_user",
+            }
+        )
+        self.assertEqual(identifiers, {"user_ids": ("fixture_user",)})
+
     def test_every_record_query_applies_audit_cutoff(self) -> None:
         store = RecordStore()
         for capture_id, captured_at in (

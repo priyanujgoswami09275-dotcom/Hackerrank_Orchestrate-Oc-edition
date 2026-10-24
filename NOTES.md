@@ -4,7 +4,7 @@
 
 - Read `AGENTS.md`, `agent_trace_instructions.md`, `problem_statement.md`, `README.md`, `CLAUDE.md`, and `PRD.md` in the requested order.
 - The requested `architecture.md` path is absent; the repository has `Architecture .md` (capitalized, with a space), which was read as the apparent intended architecture document.
-- `AGENTS.md` §6.8 requires `evaluation/evaluation_report.md` and `evaluation/usage_report.md` inside `code.zip`. This takes precedence over the problem statement and README paths, which say `code/evaluation/`. Keep the package paths at `evaluation/`.
+- `AGENTS.md` §6.8 requires `evaluation/evaluation_report.md` and `evaluation/usage_report.md` inside `code.zip`. `problem_statement.md` also specifies `evaluation/` in the package; `README.md`, `PRD.md`, and `Architecture .md` instead refer to `code/evaluation/`. Follow AGENTS.md for the package path. The evaluation harness source remains under `code/evaluation/`.
 - The deliverable is the repository-root `output.csv`. `dataset/output.csv` is a one-line template and is not to be modified.
 - The challenge deadline is not configured in the repository.
 - The runtime did not expose an authoritative model identifier in the available metadata/environment. The session log records `model=unknown`; no model name was inferred.
@@ -36,6 +36,18 @@
 - Evaluation request coverage: 518/518 emails resolve at their respective `audit_at`; 100 are historical-email-only matches; no ambiguous request-email matches were observed.
 - Verification run: `python3 -m unittest discover -s code/tests -v` passed all 16 tests, including future-identity cutoff, historical aliases, hash coverage, and cutoff-gated customer-reference joins.
 
+## M4 — deterministic baseline
+
+- Added a rule-based intent check, policy engine, as-of state assessor, planner, output validator/writer, and `code/run.py`. The empty `code/main.py` and `code/evaluation/main.py` starter files remain untouched; `dataset/output.csv` remains untouched.
+- Added `--requests` to `code/run.py` so the same baseline can be run on the 32 public sample requests for evaluation as well as the full evaluation set. No case- or evidence-specific branches were added.
+- Public-sample intent classification is 32/32 after adding affirmative closure/removal and prior-deletion verification phrasings. `reported_status` is not consulted.
+- Initial sample scoring exposed a false-match bug: placeholder `"null"` customer references were indexed as identifiers, making many unrelated records appear linked. Filtered null-like sentinels in the loader and identity resolver, and added regression tests. Activity detail matching now also requires identifier token boundaries to prevent `user_01` matching `user_010`.
+- Full run: `python3 code/run.py` produced and structurally validated 518 rows at repository-root `output.csv`: COMPLETE=119, INCOMPLETE=377, NOT_APPLICABLE=22.
+- Sample baseline score after the above fixes: status accuracy 71.88% (23/32); step-level accuracy 32.12% (62/193); field-level accuracy 42.12% (569/1351 aligned fields); sequence accuracy 3.12% (1/32). Sample ordering passed. These are measured baseline results, not a claim of strong accuracy.
+- Remaining visible-sample failures include unsupported resource linkage when no cutoff-visible identity-bearing record exists, missing retained/security records in some plans, and a few state/policy mismatches. Image/PDF evidence remains uninspected and is not used by the baseline. These are open limitations; do not paper over them with case-specific mappings.
+- Verification: `python3 -m unittest discover -s code/tests -v` passed all 24 tests. The baseline validator confirmed every cited evidence reference exists and is no later than its request's `audit_at`.
+- Diagnostic process caveat: one broad structured-evidence text search displayed a record from a capture later than one sample request's cutoff. That observation was not used in the implementation or output; it must not be relied on or cited. Subsequent baseline queries remained gated internally by `audit_at`.
+
 ## What was tried or reverted
 
-- No implementation approach has been reverted.
+- The first sample-score attempt compared the 518 evaluation-case output directly with 32 sample cases; the IDs are distinct, so it correctly reported the sample rows missing. Added a request-file option and reran the baseline on `sample_deletion_requests.csv`; no code path or labels were reverted.

@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+CODE = Path(__file__).resolve().parents[1]
+if str(CODE) not in sys.path:
+    sys.path.insert(0, str(CODE))
+from pramaantrace.constants import OPERATION_ORDER, PHASE_ORDER  # noqa: E402
+
 
 OUTPUT_FIELDS = ("case_id", "deletion_status", "steps_json")
 STEP_FIELDS = (
@@ -23,32 +28,6 @@ STEP_FIELDS = (
     "state",
     "evidence_id",
 )
-PHASE_ORDER = ("FINDING", "REMEDIATION", "VERIFICATION")
-OPERATION_ORDER = {
-    "FINDING": (
-        "REPORT_REMAINING_RECORD",
-        "REPORT_EXPOSED_PII",
-        "REPORT_ACTIVE_DATA_FLOW",
-        "REPORT_RESTORE_RISK",
-    ),
-    "REMEDIATION": (
-        "DISABLE_DATA_FLOW",
-        "BLOCK_RESTORE",
-        "DELETE_RECORD",
-        "REDACT_RECORD",
-        "ANONYMIZE_RECORD",
-    ),
-    "VERIFICATION": (
-        "VERIFY_RECORD_ABSENT",
-        "VERIFY_RECORD_PRESENT",
-        "VERIFY_RECORD_REDACTED",
-        "VERIFY_RECORD_ANONYMIZED",
-        "VERIFY_DATA_FLOW_DISABLED",
-        "VERIFY_RESTORE_BLOCKED",
-    ),
-}
-
-
 @dataclass(frozen=True)
 class Metrics:
     cases: int
