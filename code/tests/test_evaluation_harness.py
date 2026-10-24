@@ -17,6 +17,7 @@ from harness import (  # noqa: E402
     evaluate,
     read_csv,
 )
+from failure_analysis import classify_unmatched, delta  # noqa: E402
 
 
 class EvaluationHarnessTests(unittest.TestCase):
@@ -55,6 +56,56 @@ class EvaluationHarnessTests(unittest.TestCase):
         metrics, diffs = evaluate(self.expected, actual)
         self.assertEqual(metrics.sequences_correct, 31)
         self.assertIn("missing_steps", diffs[case_id])
+
+    def test_failure_multiset_ignores_step_number(self) -> None:
+        step = {
+            "step_no": 1,
+            "phase": "VERIFICATION",
+            "system_id": "fixture-system",
+            "resource_id": "fixture-resource",
+            "operation": "VERIFY_RECORD_ABSENT",
+            "state": "ABSENT",
+            "evidence_id": "fixture-evidence",
+        }
+        predicted = {**step, "step_no": 4}
+
+        missing, extra = delta([step], [predicted])
+
+        self.assertEqual(missing, [])
+        self.assertEqual(extra, [])
+
+    def test_failure_multiset_preserves_duplicate_counts(self) -> None:
+        step = {
+            "step_no": 1,
+            "phase": "VERIFICATION",
+            "system_id": "fixture-system",
+            "resource_id": "fixture-resource",
+            "operation": "VERIFY_RECORD_PRESENT",
+            "state": "PRESENT",
+            "evidence_id": "fixture-evidence",
+        }
+
+        missing, extra = delta([step, {**step, "step_no": 2}], [step])
+
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(extra, [])
+
+    def test_failure_buckets_only_single_field_pairs(self) -> None:
+        expected = {
+            "phase": "VERIFICATION",
+            "system_id": "fixture-system",
+            "resource_id": "fixture-resource",
+            "operation": "VERIFY_RECORD_ABSENT",
+            "state": "ABSENT",
+            "evidence_id": "fixture-evidence",
+        }
+        predicted = {**expected, "evidence_id": ""}
+
+        paired, missing, extra = classify_unmatched([expected], [predicted])
+
+        self.assertEqual(paired["evidence_id"], 1)
+        self.assertEqual(missing, [])
+        self.assertEqual(extra, [])
 
     def test_absence_citations_are_temporal_and_artifact_backed(self) -> None:
         requests = read_csv(

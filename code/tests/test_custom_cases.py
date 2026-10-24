@@ -32,6 +32,18 @@ RULES = RuleEngine(
             "condition": "Active hold",
             "required_action": "RETAIN",
         },
+        {
+            "rule_id": "fixture-anonymize-analytics",
+            "data_category": "ANALYTICS_PROFILE",
+            "condition": "Anonymize user-attributable analytics",
+            "required_action": "ANONYMIZE",
+        },
+        {
+            "rule_id": "fixture-redact-support",
+            "data_category": "SUPPORT_MESSAGE",
+            "condition": "Redact direct identifiers while retaining shared context",
+            "required_action": "REDACT",
+        },
     ]
 )
 
@@ -262,6 +274,73 @@ class ParticipantCreatedCaseTests(unittest.TestCase):
             {(step["operation"], step["state"]) for step in verification_steps},
         )
         self.assertTrue(verification_steps)
+        self.assertTrue(all(step["evidence_id"] == "" for step in verification_steps))
+
+    def test_incomplete_plan_verifies_each_compliant_rule_target(self) -> None:
+        store = RecordStore()
+        linked = {"user_ids": (USER_ID,)}
+        records = (
+            (
+                "profile-capture",
+                "account_service",
+                "profile-fixture",
+                "USER_PROFILE",
+                {"email": CURRENT_EMAIL, "user_id": USER_ID},
+            ),
+            (
+                "analytics-capture",
+                "analytics_platform",
+                "analytics-fixture",
+                "ANALYTICS_PROFILE",
+                {"resource_id": "analytics-fixture"},
+            ),
+            (
+                "support-capture",
+                "support_platform",
+                "support-fixture",
+                "SUPPORT_MESSAGE",
+                {"resource_id": "support-fixture", "message_excerpt": "Shared context"},
+            ),
+            (
+                "hold-capture",
+                "legal_service",
+                "hold-fixture",
+                "LEGAL_HOLD_RECORD",
+                {"resource_id": "hold-fixture", "legal_hold": True},
+            ),
+        )
+        for capture_id, system_id, resource_id, category, attributes in records:
+            store.add_record(
+                NormalizedRecord(
+                    capture_id=capture_id,
+                    captured_at="2026-09-15T00:00:00Z",
+                    topology="fixture-primary",
+                    system_id=system_id,
+                    resource_id=resource_id,
+                    category=category,
+                    identifiers=linked,
+                    attributes=attributes,
+                )
+            )
+
+        result = assess(store)
+        verification_steps = [
+            step for step in result["steps"] if step["phase"] == "VERIFICATION"
+        ]
+
+        self.assertEqual(result["deletion_status"], "INCOMPLETE")
+        self.assertEqual(
+            {
+                (step["operation"], step["state"])
+                for step in verification_steps
+            },
+            {
+                ("VERIFY_RECORD_ABSENT", "ABSENT"),
+                ("VERIFY_RECORD_ANONYMIZED", "ANONYMIZED"),
+                ("VERIFY_RECORD_REDACTED", "REDACTED"),
+                ("VERIFY_RECORD_PRESENT", "PRESENT"),
+            },
+        )
         self.assertTrue(all(step["evidence_id"] == "" for step in verification_steps))
 
     def test_historical_request_email_finds_current_subject_record(self) -> None:

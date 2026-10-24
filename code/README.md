@@ -71,6 +71,17 @@ python3 evaluate.py --disable-media
 To score a candidate CSV already generated for the 32 sample requests, use
 `python3 evaluation/harness.py path/to/sample-output.csv`.
 
+For a corrected per-case multiset diff that ignores `step_no` and lists unmatched
+expected/predicted step contents, run:
+
+```bash
+python3 evaluation/failure_analysis.py
+```
+
+It runs a temporary sample baseline and does not use sample answers at runtime.
+One-field differences are paired separately; unpaired steps remain categorized
+as missing or extra rather than being guessed from their array positions.
+
 Other checks:
 
 ```bash
