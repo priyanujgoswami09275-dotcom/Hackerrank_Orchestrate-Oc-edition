@@ -1,37 +1,94 @@
 # PramaanTrace evaluation report
 
-## Evaluation scope
+## Scope and method
 
-The public evaluator contains 32 cases. Metrics below compare predictions
-against `dataset/sample_output.csv`; they do not use hidden labels or organizer
-files. The evaluator reports status accuracy, matched step tuples, aligned
-field accuracy, and exact ordered-sequence accuracy. The declared operation
-sort order and consecutive step numbering passed for every public sample.
+The public evaluator contains 32 labeled requests. All scores below compare
+predictions with `dataset/sample_output.csv`; hidden labels and organizer-only
+files were not used. The evaluation harness reports deletion-status accuracy,
+matched step tuples, aligned-field accuracy, and exact ordered-sequence
+accuracy. The 32 samples are a weak estimate of behavior on the 518 evaluation
+requests. The baseline does not use sample labels or case-specific branches.
 
-The 32-case sample is a weak estimate of behavior on the 518 evaluation
-requests. Do not interpret these percentages as a reliable full-dataset
-accuracy estimate. The baseline is data-driven and was not tuned with
-case-specific branches or hardcoded sample labels.
+The fixed split sorts sample `case_id` values and assigns 1-based odd positions
+to A and even positions to B. Fix development used A; B was held out. The only
+M4a planner fix adds future verification steps for already-compliant records
+and processes in otherwise incomplete cases. It was kept because no B metric
+regressed.
 
-## Public sample metrics
+## Sample evaluation
 
-| Metric | Structured-only baseline | Media-enabled baseline |
-|---|---:|---:|
-| Case status accuracy | 71.88% (23/32) | 75.00% (24/32) |
-| Step-level accuracy | 32.12% (62/193) | 34.20% (66/193) |
-| Field-level accuracy | 42.12% (569/1,351) | 44.71% (604/1,351) |
-| Exact sequence accuracy | 3.12% (1/32) | 3.12% (1/32) |
-| Sample sort contract | PASS | PASS |
+| Run | Split | Status accuracy | Step accuracy | Field accuracy | Exact sequence |
+|---|---|---:|---:|---:|---:|
+| Before fix, structured only | A | 75.00% (12/16) | 21.51% (20/93) | 30.11% (196/651) | 6.25% (1/16) |
+| Before fix, structured only | B | 68.75% (11/16) | 42.00% (42/100) | 53.29% (373/700) | 0.00% (0/16) |
+| Before fix, structured only | All | 71.88% (23/32) | 32.12% (62/193) | 42.12% (569/1,351) | 3.12% (1/32) |
+| After kept fix, structured only | A | 75.00% (12/16) | 21.51% (20/93) | 32.41% (211/651) | 6.25% (1/16) |
+| After kept fix, structured only | B | 68.75% (11/16) | 43.00% (43/100) | 58.00% (406/700) | 6.25% (1/16) |
+| After kept fix, structured only | All | 71.88% (23/32) | 32.64% (63/193) | 45.67% (617/1,351) | 6.25% (2/32) |
+| Final media-enabled baseline | A | 81.25% (13/16) | 26.88% (25/93) | 38.86% (253/651) | 6.25% (1/16) |
+| Final media-enabled baseline | B | 68.75% (11/16) | 43.00% (43/100) | 58.00% (406/700) | 6.25% (1/16) |
+| Final media-enabled baseline | All | 75.00% (24/32) | 35.23% (68/193) | 48.78% (659/1,351) | 6.25% (2/32) |
 
-Media changed two sample outputs. The measured score gain is modest: one
-additional correct status, four additional matched steps, and 35 additional
-matching aligned fields; exact-sequence accuracy did not change. Media evidence
-was useful, but this result does not establish that the OCR heuristics generalize.
+The field denominator reflects the harness's aligned positions, including
+extra candidate steps; it is not the number of expected fields alone. The final
+media-enabled candidate has 92 missing and 20 extra content steps when
+comparing step contents without `step_no`. Positional differences include
+44 `system_id`, 44 `resource_id`, 37 operation, 35 state, 17 evidence, and 11
+phase mismatches; these overlap missing/extra steps.
 
-## Full evaluation output
+Media changed two sample predictions and corrected one status. On the full
+request set, media-derived evidence was linked to 8 of 518 cases. This is a
+measured modest contribution, not evidence that the OCR association heuristics
+generalize.
 
-The deterministic media-enabled run processed all 518 requests and validated
-the output contract:
+## Failure analysis and custom cases
+
+The eight wrong sample statuses are six expected COMPLETE cases predicted
+INCOMPLETE and two expected INCOMPLETE cases predicted COMPLETE. Dominant
+step errors are missing findings/verifications and subject-to-resource or
+system linkage. Retained-record handling accounts for 29 omitted compliant
+state verifications (17 PRESENT, 8 ANONYMIZED, 4 REDACTED) and six omitted
+privacy-treatment steps. Among expected sample risks, the candidate found five
+of six active flows and one of three restorable backups; each risk it found
+has the ordered finding, remediation, and verification. Four expected
+replica-cited remaining-record findings were found. The complete ranked
+bucket table and anonymized examples are in `NOTES.md`.
+
+Participant-created tests in `code/tests/` cover:
+
+1. **Historical email:** resolve a prior email through the identity audit log
+   and find a current subject record.
+2. **Legal hold:** preserve and verify a present retention-required record.
+3. **Replica drift and sync recreation:** treat a replica copy or a cutoff-visible
+   sync recreation as present; exclude evidence after `audit_at`.
+4. **Condition c, prohibited identifiers:** retain the stable subject reference
+   in a tombstone, but require redaction when prohibited direct identifiers
+   remain.
+5. **Condition d, missing retained record:** return INCOMPLETE when a required
+   retained record is absent, without inventing an unsupported operation.
+6. **Active connector and restorable backup:** verify finding/remediation/
+   verification order and empty evidence IDs for proposed future work.
+
+The public samples include retained-record verification and redaction/
+anonymization behavior, but no public sample demonstrates a required retained
+record that is missing. The allowed operation set has no finding or remediation
+for restoring such a record; this condition is tested synthetically and remains
+unverified against a public expected answer.
+
+Absence-citation inspection verified 10 expected COMPLETE absence citations:
+four cite omissions from complete SQL/JSON listings, and six cite explicit
+zero-row/404 results. The cited artifacts are at or before `audit_at`. A text
+search miss alone is not treated as proof of absence.
+
+The public sample has 10 expected COMPLETE and 22 expected INCOMPLETE requests,
+with zero expected NOT_APPLICABLE cases. The intent classifier authorizes all
+32, so non-NOT_APPLICABLE intent is correct on 32/32 and NOT_APPLICABLE
+accuracy is untestable at 0/0. The 22 NOT_APPLICABLE outputs among the 518
+evaluation requests have no public labels.
+
+## Full-dataset output
+
+The final deterministic baseline validated all 518 requests:
 
 | Status | Cases |
 |---|---:|
@@ -39,61 +96,28 @@ the output contract:
 | INCOMPLETE | 376 |
 | NOT_APPLICABLE | 22 |
 
-The root-level `output.csv` has the required header and one sorted row per
-request. The validator checked allowed operations/states, exact step keys,
-numbering, phase/operation ordering, evidence references, and evidence
-timestamps. Two warm-cache full runs produced SHA-256
-`cb76153310c39a58d7b8c54996d01e28004489a7e6e29c1c9d306f933b535454`.
+The root `output.csv` contains one sorted row per request and passed the output
+validator. Warm-cache and cache-disabled full runs both produced SHA-256
+`e554553fd4b061b6253b9f3da1f7f2ce8b2a2c251a06650abe62441c1652309f`.
+The submission CSV is standalone; it does not require the local OCR cache.
 
-## Participant-created custom test cases
+## Improvements, limitations, and next work
 
-These synthetic fixtures are implemented in `code/tests/` and are not copies of
-public sample answers:
-
-1. **Historical email lookup:** a request using an older email resolves through
-   the audit log and finds a still-present account profile.
-2. **Active legal hold:** a policy-required retained record remains present and
-   receives an evidence-backed `VERIFY_RECORD_PRESENT` step.
-3. **Replica drift:** a complete primary listing omits a profile while a
-   read-replica snapshot still contains it; the result is INCOMPLETE.
-4. **Retained tombstone with exposed identifiers:** the stable subject
-   reference is preserved, but prohibited name/email fields cause an
-   `REPORT_EXPOSED_PII` finding and redaction plan.
-5. **Missing required retained record:** a later complete listing omits a
-   record that remains under active legal hold; the verdict is INCOMPLETE.
-
-The fifth case exposes an output-contract limitation: no allowed finding or
-remediation operation describes restoring a missing required retained record.
-The implementation reports INCOMPLETE without inventing a new operation.
-
-## Failures found and improvements made
-
-- The first structured-only sample run scored 23/32 on status and missed
-  identity-linked media artifacts. Added a local PDF/image reader with a
-  per-request cutoff, normalized evidence, and an external SHA-256-keyed cache.
-- Plain OCR text order associated a connector with the wrong nearby customer
-  row. The media parser now uses Apple Vision bounding-box row alignment and
-  declines unsupported/non-adjacent associations.
-- Support PDF content was initially interpreted as a support conversation.
-  Added generic attachment-context recognition and ownership handling so a
-  customer-uploaded attachment follows the attachment rule instead of the
-  conversation redaction rule.
-- Retained tombstones are checked for prohibited direct identifiers. Missing
-  required retained records now force INCOMPLETE when a complete,
-  cutoff-visible listing proves absence.
-- The sample still has low exact-sequence accuracy. Remaining gaps include
-  identity-to-resource linkage when the evidence does not expose a strong join,
-  incomplete per-record state reconstruction, and cases whose required
-  verification set is broader than the baseline discovers.
-
-## Limitations
-
-- The local media path was verified on macOS using Apple Vision/PDFKit and
-  pypdf. A non-macOS run requires Tesseract for image OCR; otherwise the
-  pipeline reports eligible files it could not extract.
-- OCR and media-to-record association remain heuristic. A normalized media
-  record is emitted only for a resource identifier close to an email or stable
-  user reference; this can omit evidence whose layout is more complex.
-- No investigator LLM was implemented in this milestone. Final output is
-  deterministic code output; no LLM gain is claimed.
-- 32 public samples are a weak estimate for the 518-case evaluation set.
+- Filtered null-like customer-reference sentinels and enforced identifier token
+  boundaries to avoid unrelated matches.
+- Added temporal record/listing/text queries, explicit per-topology SQL
+  adapters, and a cutoff-aware identity resolver.
+- Added state checks for retained records and privacy-required redaction/
+  anonymization, plus the M4a verification-completeness fix.
+- Added local media extraction with Apple Vision on macOS and a Tesseract
+  fallback when installed. The cache is outside the repository and excluded
+  from the archive.
+- The current macOS run exercised Apple Vision and selectable-PDF extraction.
+  Tesseract is absent on this host; the portable OCR/PDFium fallback is
+  unit/mock-tested but not end-to-end verified here.
+- The main remaining errors are incomplete record discovery/linkage and
+  operation/state selection. The investigator LLM milestone has not started;
+  no gain is claimed. Any future agent findings must be re-queried and
+  validated by deterministic code.
+- The sample set is small and does not establish expected accuracy on 518
+  cases.

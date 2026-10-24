@@ -64,26 +64,126 @@
 - Added `code/check_source_literals.py`; it dynamically checks source against participant-visible request IDs, evidence IDs, and evidence manifest paths. Added a packaging script that zips only the contents of `code/`, excludes data, caches, credentials, build artifacts, and archives, verifies the archive, and prints its listing. `code/README.md` is packaged; archive-root `evaluation/` corresponds to source `code/evaluation/`.
 - Runtime model metadata for this session reports `claude-opus-4-8`; the media-enabled full baseline itself made no LLM calls. Vision and PDF extraction were executed locally. No API key was needed.
 
-## M4a — failure analysis and held-out fixes
+## M4a — failure analysis and held-out fix
 
-- M4a had not been completed before this follow-up; there was no bucket table.
-- Re-ran the media-enabled sample baseline and evaluator. Reproduced metrics are status 24/32, steps 64/193, fields 606/1,358 aligned fields, and sequence 1/32. The structured-only run is 23/32, 62/193, 569/1,351, and 1/32. These do not reproduce the previously reported media numbers of 66/193 steps and 604/1,351 fields; the current media-enabled output was byte-identical on two sample runs.
-- Fixed split: sort public sample cases by `case_id`; A is positions 1, 3, 5, … and B is positions 2, 4, 6, …. Baseline metrics before fixes:
+### Reproducible sample split and metrics
 
-  | Split | Status | Steps | Fields | Exact sequences |
-  |---|---:|---:|---:|---:|
-  | A | 13/16 | 22/93 | 233/658 | 1/16 |
-  | B | 11/16 | 42/100 | 373/700 | 0/16 |
-  | All | 24/32 | 64/193 | 606/1,358 | 1/32 |
+Sort sample `case_id` values, then assign 1-based odd positions to A and even
+positions to B. Fix development was limited to A; B was held out. These tables
+use the harness's matched step tuples, aligned fields, and exact ordered
+sequences. The field denominator can exceed the expected-step count when a
+candidate has extra steps.
 
-- Kept fix 1: for an `INCOMPLETE` case, the planner now includes verification checks for already-compliant retained records and disabled processes, alongside checks for records/processes needing remediation. All verification evidence IDs in an incomplete plan are empty, as required for future checks. Added a synthetic regression test for a remaining profile plus an already-compliant legal-hold record.
-- Fix 1 metrics:
+| Run | Split | Status | Steps | Fields | Exact sequences |
+|---|---|---:|---:|---:|---:|
+| Before fix, structured only | A | 12/16 | 20/93 | 196/651 | 1/16 |
+| Before fix, structured only | B | 11/16 | 42/100 | 373/700 | 0/16 |
+| Before fix, structured only | All | 23/32 | 62/193 | 569/1,351 | 1/32 |
+| After kept fix, structured only | A | 12/16 | 20/93 | 211/651 | 1/16 |
+| After kept fix, structured only | B | 11/16 | 43/100 | 406/700 | 1/16 |
+| After kept fix, structured only | All | 23/32 | 63/193 | 617/1,351 | 2/32 |
+| Final media-enabled run | A | 13/16 | 25/93 | 253/651 | 1/16 |
+| Final media-enabled run | B | 11/16 | 43/100 | 406/700 | 1/16 |
+| Final media-enabled run | All | 24/32 | 68/193 | 659/1,351 | 2/32 |
 
-  | Split | Status | Steps | Fields | Exact sequences |
-  |---|---:|---:|---:|---:|
-  | A | 13/16 | 22/93 | 245/665 | 1/16 |
-  | B | 11/16 | 43/100 | 406/700 | 1/16 |
-  | All | 24/32 | 65/193 | 651/1,365 | 2/32 |
+The kept, general planner fix adds post-remediation verification for records
+and processes that were already compliant in an otherwise incomplete case.
+Its structured-only comparison did not reduce any metric on B: B gained one
+matched step, 33 aligned fields, and one exact sequence; status was unchanged.
+Across all samples it gained one matched step, 48 fields, and one exact
+sequence, with no status regression. The change was committed as `7f318e1`.
+No M4a fixes were reverted.
 
-- The fix improved field and sequence scores on both halves and step score on B without reducing any metric; status was unchanged. The rise in the field denominator reflects additional planned verification steps. This change is contract-driven, not sample-specific.
-- The sample set contains 10 expected `COMPLETE` and 22 expected `INCOMPLETE` cases, with no `NOT_APPLICABLE` examples. The intent classifier predicts all 32 as deletion-authorizing, so sample specificity is untested; the 22 `NOT_APPLICABLE` rows in the 518-case baseline have no public labels to validate against.
+The earlier M4b metrics in this file were provisional and used stale,
+unversioned OCR cache content. The portable media reader now versions its cache;
+the final measurements above supersede those provisional values. Media changes
+two sample outputs and corrects one status relative to structured-only. It
+does not explain the remaining low step/sequence scores.
+
+### Ranked sample error buckets
+
+The step-field mismatch counts below are positional comparisons at the same
+array index. Missing/extra content-step counts use a multiset comparison that
+ignores `step_no`. These categories overlap and must not be summed. Example
+descriptions are anonymized patterns, not case-specific rules.
+
+| Rank | Failure bucket | Count | Anonymized example pattern |
+|---:|---|---:|---|
+| 1 | Missing content steps | 92 | A required absence verification is omitted while the case contains other findings. |
+| 2 (tie) | Wrong `resource_id` at aligned positions | 44 | A step is aligned with a different record than the expected subject-linked copy. |
+| 2 (tie) | Wrong `system_id` at aligned positions | 44 | A record is attributed to a neighboring or differently named system. |
+| 4 | Wrong operation at aligned positions | 37 | A retained/exposed-identifier condition is represented by a different operation. |
+| 5 | Wrong state at aligned positions | 35 | The operation is paired with the wrong state, often due to an incomplete record-state reconstruction. |
+| 6 | Extra content steps | 20 | A predicted check/remediation has no corresponding expected step. |
+| 7 | Wrong `evidence_id` at aligned positions | 17 | A citation differs from the expected capture even though both may be temporally valid. |
+| 8 | Wrong phase at aligned positions | 11 | A step is placed in a different phase than the expected ordered plan. |
+| — | Wrong `step_no` at aligned positions | 0 | Numbering remains consecutive; the main issue is content and linkage. |
+
+Additional overlapping buckets:
+
+| Bucket | Count | Anonymized example / interpretation |
+|---|---:|---|
+| Wrong deletion status | 8 cases: 6 expected COMPLETE predicted INCOMPLETE; 2 expected INCOMPLETE predicted COMPLETE | A surviving or incompletely treated copy is missed, or an unresolved state is treated as compliant. |
+| Retained-state verification omitted | 29 steps: 17 PRESENT, 8 ANONYMIZED, 4 REDACTED | A retained legal/audit/analytics record is not included in the checklist when another record makes the case incomplete. |
+| Required privacy treatment omitted | 6 steps: 3 exposed-PII findings, 2 redactions, 1 anonymization | A retained record with prohibited identifiers does not get the full finding/remediation/check sequence. |
+| Replica-drift finding missed | 0 of 4 expected replica-cited remaining-record findings | The public examples where the primary is absent and a replica remains were found; two such cases also have cutoff-visible sync evidence. |
+| Active data-flow / restore risk missed | 1 of 6 expected flows and 2 of 3 expected restorable backups | Every detected risk has the ordered finding, disable/block, and verification triple; the missed risks account for absent expected plan steps. |
+| Absence-proof rule | 10/10 public COMPLETE absence citations were artifact-backed and at/before `audit_at`: 4 complete-listing omissions and 6 explicit zero-row/404 results | A text-search miss alone is not proof. The test is `test_absence_citations_are_temporal_and_artifact_backed`; a complete SQL/JSON listing or explicit not-found result is required. |
+| Media contribution | 2 sample outputs changed; 1 status corrected; media-linked evidence in 8/518 requests | Media helps a small subset and is not the dominant source of sample step errors. |
+
+### Completion conditions and unresolved coverage
+
+- Condition c is exercised by public examples requiring retained-record
+  redaction/anonymization and by the synthetic tombstone-with-prohibited-fields
+  test. The stable subject reference is retained while disallowed identifiers
+  trigger an incomplete plan.
+- Condition d is covered synthetically: a missing record under a retention
+  rule makes the verdict `INCOMPLETE`. No public sample demonstrates this
+  missing-retained-record situation. The allowed operation vocabulary has no
+  finding/remediation pair for restoring it; the implementation does not invent
+  an operation and emits no fabricated step for that condition. This behavior
+  and sample coverage remain explicitly unverified against a canonical example.
+- The synthetic replica test compares a primary deletion listing with a
+  replica record and a sync event on both sides of `audit_at`; future captures
+  are gated out. The synthetic connector/backup test checks phase and operation
+  order for both risks.
+- Intent uses affirmative multilingual deletion/erasure/purge/suppression,
+  account closure/removal, residual-copy removal, and deletion-verification
+  patterns. Negated/withdrawn requests and keep-active phrases veto
+  authorization; access/export/correction/update/marketing-opt-out phrases
+  are non-deletion actions. It never consults `reported_status`. Public labels
+  contain 10 COMPLETE and 22 INCOMPLETE requests and zero NOT_APPLICABLE
+  requests: non-NOT_APPLICABLE intent is correct on 32/32; NOT_APPLICABLE is
+  untestable at 0/0. The 22 NOT_APPLICABLE predictions in the 518-case run
+  have no public labels.
+
+### Remaining issues and next work
+
+The highest-volume errors are incomplete step discovery and system/resource
+linkage, followed by operation/state selection. Some can be addressed with
+more general evidence adapters, stronger record joins, and state reconciliation
+across topologies. A tool-using LLM might help investigate ambiguous text and
+cross-artifact links, but it cannot override the temporal gate or repair a
+planner finding that the deterministic verifier cannot reproduce. No LLM was
+started in M4a. The 32 public cases are a weak estimate for the 518 evaluation
+requests.
+
+### Runtime and media portability
+
+For this resumed session, the local Codex config reports
+`model = "openai/gpt-6-luna"`; the full baseline made zero model calls. The
+portable media fallback is Vision first, then Tesseract when installed; scanned
+PDF fallback also requires PyPDFium2. Apple Vision and selectable-PDF extraction
+were exercised on this macOS host. Tesseract is not installed here, so the
+portable OCR route is unit/mock-tested but not end-to-end verified. The
+cache-disabled full run and warm-cache run both produced the same standalone
+`output.csv`; the CSV does not require the private OCR cache.
+
+## What was tried or reverted
+
+- No M4a change was reverted. The candidate before and after the retained-state
+  verification fix is preserved by comparing the pre-fix source revision with
+  the current structured-only run.
+- Earlier media score observations based on unversioned OCR cache entries were
+  superseded after the cache-key version change; no case-specific patch was
+  retained from those observations.
