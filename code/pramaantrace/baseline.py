@@ -9,10 +9,10 @@ from typing import Any, Iterable, Mapping
 
 from .identity import IdentityResolver, ResolvedIdentity
 from .intent import authorizes_deletion
+from .linkage import referenced_resource_ids
 from .loader import (
     DatasetBundle,
     enrich_enabled,
-    flatten_values,
     system_from_resource,
 )
 from .planner import build_steps
@@ -85,40 +85,18 @@ CLAIM_EVENT_ACTIONS = {
 }
 
 
-REFERENCE_SHAPE_PATTERN = re.compile(r"^[a-z][a-z_]*[a-z]_[0-9]+$")
-
-REFERENCE_KEY_EXCLUSIONS = frozenset(
-    {
-        "resource_id",
-        "trace_id",
-        "capture_id",
-        "file_id",
-        "evidence_id",
-        "conn_id",
-        "request_id",
-    }
-)
-
-
 def _referenced_resources(matched_records: Iterable[NormalizedRecord]) -> set[str]:
     """Resource ids that subject-linked evidence records name in their
     attributes (e.g. an index document naming its source account). These are
     the subject's other resources the evidence itself ties to this person."""
     referenced: set[str] = set()
     for record in matched_records:
-        for key, value in flatten_values(record.attributes):
-            if key in REFERENCE_KEY_EXCLUSIONS:
-                continue
-            text = str(value).strip().strip("\\\"'")
-            if not REFERENCE_SHAPE_PATTERN.fullmatch(text):
-                continue
-            if text == record.resource_id:
-                continue
-            if text.casefold().startswith(("user_", "customer_")):
-                continue
-            if system_from_resource(text) is None:
-                continue
-            referenced.add(text)
+        referenced.update(
+            referenced_resource_ids(
+                record.attributes,
+                own_resource_id=record.resource_id,
+            )
+        )
     return referenced
 
 
@@ -440,6 +418,7 @@ def assess_case(
     identity_resolver: IdentityResolver,
     rule_engine: RuleEngine,
     activities: Iterable[Mapping[str, str]],
+    additional_resource_keys: Iterable[tuple[str, str, str]] = (),
 ) -> dict[str, Any]:
     if not authorizes_deletion(request["request_text"]):
         return {
@@ -467,6 +446,20 @@ def assess_case(
     identity_values = _identity_values(identity)
     activities = tuple(activities)
     keys = _resource_keys(identity, store, activities, request["audit_at"])
+    for key in additional_resource_keys:
+        if (
+            isinstance(key, tuple)
+            and len(key) == 3
+            and all(isinstance(part, str) and part for part in key)
+            and _candidate_records(
+                store,
+                audit_at=request["audit_at"],
+                system_id=key[0],
+                resource_id=key[1],
+                category=key[2],
+            )
+        ):
+            keys.add(key)
 
     findings: list[dict[str, str]] = []
     remediations: list[dict[str, str]] = []

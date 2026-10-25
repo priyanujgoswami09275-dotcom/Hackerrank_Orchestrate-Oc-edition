@@ -979,3 +979,446 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+## [2026-10-25T12:00:05+0530] Plan approved for inline execution in isolated worktree
+
+User Prompt (verbatim, secrets redacted):
+Approve; implement inline (Recommended)
+
+Agent Response Summary:
+User approved the implementation plan and selected inline execution. Next, invoke the worktree and executing-plan workflows, then implement the seven TDD tasks in an isolated worktree. User has authorized the full 518-case LLM run; no credentials will be exposed in logs or outputs.
+
+Actions:
+* Recorded plan and inline-execution approval
+* Preparing isolated worktree setup and task-by-task TDD execution
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+## [2026-10-25T13:07:02+05:30] SESSION START
+
+tool=OpenCode
+model=openai/gpt-6-luna
+Repo Root: /Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+Branch: feat/investigator-agent
+Worktree: /Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+Parent Agent: none
+Language: py
+Time Remaining: not configured
+
+## [2026-10-25T13:07:57+05:30] Step 1 — safe state and baseline fallback
+
+User Prompt (verbatim, secrets redacted):
+@ponytail FINAL MASTER TASK. Read BRIEF.md and HANDOFF.md first (they hold the project rules; follow them). Work in the order below. After EACH numbered step: commit, update HANDOFF.md, append to log.txt, and show real command output. Never invent numbers. Never print or commit keys. If budget or time runs short, skip down to step 8 (final packaging) and report what was skipped. Priority: a valid, honest submission beats a finished agent.
+
+CURRENT STATE (verify, don't trust): sample eval status 29/32, step precision 161/161, recall 161/193, fields 987/1351, sequences 12/32. The agent's sample CSV was byte-identical to the baseline. The 518-case agent run had not finished. Reports not final.
+
+1. SAFE STATE (5 min). Check whether the 518-case run is running or dead (processes, cache, log); do not start a duplicate. Confirm the repo has a valid committed output.csv (518 rows) from the BASELINE with no agent. Save a copy as output_baseline.csv (not in the zip) with its SHA-256. This is the fallback submission.
+
+2. LEAKAGE CHECK (must pass before anything else). Precision jumped from about 35% to 100%. Prove it's not leakage: (a) grep that no runtime code reads sample_output.csv or any label file; (b) run code/check_source_literals.py; (c) temporarily move sample_output.csv out of dataset/, run the full pipeline, confirm output.csv is byte-identical, then restore the file; (d) list what each linkage rule keys on. If anything leaks, STOP, revert the leaking change, report it, and use the last clean commit.
+
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_STEP_CAP=8, AGENT_CALL_BUDGET). Print: model calls made, findings proposed/verified/dropped, fallbacks, skipped-by-budget, tokens. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4. Raw traces (no keys) for 3 sample cases. Agent runs only on uncertain cases, with retries/backoff on 429/5xx, fallback to baseline, cached calls, audit_at-gated tools, findings re-verified by code, never writing final steps. Keep the agent in the final output ONLY if it improves status or tuple-matched steps and hurts nothing; otherwise submit baseline-only and say "no measurable gain" plainly. Give the full run at most the time you have left after steps 4-7; if it can't finish, use the cache so far, and report the partial coverage honestly. Two warm-cache runs must have identical SHA-256.
+
+4. FEATURE A: code/tools/submission_guard.py. One command; PASS/FAIL per item; exit 1 on any FAIL; it supplements and never replaces the pipeline validator.
+ - output.csv: exact header case_id,deletion_status,steps_json; 518 rows; sorted by case_id; valid JSON in steps_json; allowed operation/state pairs; consecutive step_no from 1; phase order FINDING, REMEDIATION, VERIFICATION and the within-phase sort; evidence_id rules (FINDING and COMPLETE-case VERIFICATION cite real evidence; REMEDIATION and INCOMPLETE-case VERIFICATION use ""); NOT_APPLICABLE implies []; no cited evidence captured after audit_at.
+ - code.zip: contains README.md, source, evaluation reports; excludes dataset/, virtualenvs, __pycache__, node_modules, .git, nested archives, caches, .env.
+ - Secret scan on code, reports, log.txt, zip.
+ - Hardcoding scan: load case IDs, evidence IDs, filenames from dataset/ at check time; fail if any appear in decision logic (state exemptions: comments, docstrings, tests, evaluation fixtures).
+ - log.txt exists and matches the AGENTS.md format.
+ - Tests: a deliberately bad CSV must FAIL. Note in code/README.md that it needs dataset/ and runs from the repo.
+
+5. FEATURE B: ablation report in code/evaluation/. Score against dataset/sample_output.csv: status, step (tuple-matched and positional), field, sequence accuracy. Ablation table: rules only; rules + linkage; rules + agent; rules + agent + validator; plus safeguards on/off where cheap (verifier on/off). Per variant: model call count, tokens, accuracy, agent gain over baseline, fallback rate. Write code/evaluation/decision_log.md: each change tried, measured result, kept or reverted, why. At least 3 custom test cases (not copies of samples): old-email request; legal hold or retention; replica drift; plus an adversarial case with instruction-like text inside a request or evidence file (must be ignored and still validate). Add cases for completion conditions (c) retained-record identifiers and (d) missing retained record if absent. Report honestly where the agent does not help.
+
+6. REPORTS. Write code/evaluation/evaluation_report.md (all metrics, ablation, custom cases, failures and fixes, limits: 32 samples are a weak estimate for 518 and half B is not a blind holdout, unverified items) and code/evaluation/usage_report.md (providers, models, call count, input/output tokens total and average, estimated cost per model and overall; state zero plainly if no calls). Use only real numbers from the final run.
+
+7. NOTES AND INTERVIEW SHEET. Update NOTES.md: tried / reverted / why; and a one-page interview cheat sheet: architecture and why code decides final steps; how audit_at is enforced (store gate and every tool); how replica drift is detected; how the agent's gain was measured (or that it showed none); what still fails; what is unverified; which AI tools were used (log shows several agents/models; be factual).
+
+8. FINAL PACKAGING. Regenerate output.csv (the baseline-or-agent choice from step 3); report row count, SHA-256, COMPLETE/INCOMPLETE/NOT_APPLICABLE counts. Run the tests. Rebuild the zip with package_submission.py (code/ contents + README + evaluation/ reports; no dataset/, .env, caches, keys). Run submission_guard.py and show its full output. List the zip at depth 2. Confirm log.txt is current and append-only.
+
+9. FINAL REPORT (end with this, and nothing else after it): (a) three files to upload: path of code.zip, path of output.csv, path of log.txt; (b) guard PASS/FAIL table; (c) final metrics; (d) agent: calls, gain, kept or dropped; (e) anything skipped or unverified; (f) the model name you ran as (or "unverified").
+
+Start with step 1 now. Do not ask me questions unless a step is impossible without my input.
+
+Agent Response Summary:
+Verified the existing run remains active (PID 13610); its log was 0 bytes and SQLite cache had 0 responses, so no duplicate was started. The committed baseline output validates at 518 rows with the exact header and matches the prior no-key baseline; copied it to `output_baseline.csv` with SHA-256 `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`. Updated HANDOFF.md to document the current branch output separately from the historical bd44d3f hash/counts.
+
+Actions:
+* Read HANDOFF.md; BRIEF.md was not found in the worktree or main checkout.
+* Ran process/cache/log and baseline checks; output validation passed, 133 COMPLETE / 376 INCOMPLETE / 9 NOT_APPLICABLE.
+* Copied output.csv to output_baseline.csv; 500724 bytes, SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:10:37+05:30] Step 2 — leakage check
+
+User Prompt (verbatim, secrets redacted):
+2. LEAKAGE CHECK (must pass before anything else). Precision jumped from about 35% to 100%. Prove it's not leakage: (a) grep that no runtime code reads sample_output.csv or any label file; (b) run code/check_source_literals.py; (c) temporarily move sample_output.csv out of dataset/, run the full pipeline, confirm output.csv is byte-identical, then restore the file; (d) list what each linkage rule keys on. If anything leaks, STOP, revert the leaking change, report it, and use the last clean commit.
+
+Agent Response Summary:
+No runtime reference to sample_output.csv or label data was found: sample_output references are confined to evaluation and test code; the runtime loader's sample_deletion_requests.csv table is unused by both baseline and agent execution. The source-literal scanner passed. Removing sample_output.csv for an isolated full baseline pipeline run still produced a validated 518-row file byte-identical to the committed baseline; the sample file and root output were restored/unchanged.
+
+Actions:
+* Searched code for sample_output.csv, sample_deletion_requests.csv, output.csv, golden/truth/expected-output references and inspected runtime table consumers.
+* Ran `python3 code/check_source_literals.py` → PASS.
+* Temporarily moved sample_output.csv outside dataset, ran `python3 code/run.py --disable-agent --output /private/var/folders/p6/skhrv32s2nl4mtknn7s6mj9c0000gn/T/pramaantrace-leak-check-output.csv`; exit 0, 518 cases, COMPLETE=133 / INCOMPLETE=376 / NOT_APPLICABLE=9, Validation PASS.
+* Isolated output SHA-256 matched baseline: 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed; sample hash after restore: 11bb0f1ab2956e2a8b1b082225b8ef76e07ec112e61e5108cf5819f269eac239; root output unchanged.
+* Documented the linkage keying rules in HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:12:30+05:30] Step 3 — agent gate unavailable
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_STEP_CAP=8, AGENT_CALL_BUDGET). Print: model calls made, findings proposed/verified/dropped, fallbacks, skipped-by-budget, tokens. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4. Raw traces (no keys) for 3 sample cases. Agent runs only on uncertain cases, with retries/backoff on 429/5xx, fallback to baseline, cached calls, audit_at-gated tools, findings re-verified by code, never writing final steps. Keep the agent in the final output ONLY if it improves status or tuple-matched steps and hurts nothing; otherwise submit baseline-only and say "no measurable gain" plainly. Give the full run at most the time you have left after steps 4-7; if it can't finish, use the cache so far, and report the partial coverage honestly. Two warm-cache runs must have identical SHA-256.
+
+Agent Response Summary:
+Recorded agent unavailable and skipped the model run because `.env` is absent and required LLM settings are unset in the current shell. The existing 518-case process remains active but has produced no run-log content or cache responses; no duplicate was started. Zero completed calls/tokens are verified, while any in-flight attempt count is unverified.
+
+Actions:
+* Checked presence only (did not print values): `.env` absent; LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_CALL_BUDGET unset.
+* Rechecked PID 13610: still active; its only observed socket was not an established response, run log remained empty, and cache contained 0 responses.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:12:44+05:30] Step 3 observation correction
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4.
+
+Agent Response Summary:
+Clarification to the immediately preceding entry: the socket state shown by lsof was CLOSE_WAIT, not proof that no HTTP response occurred. The supported facts are that the process log was empty and its model-response cache had 0 rows; completed call and token usage remain unverified beyond the zero recorded responses.
+
+Actions:
+* Appended this correction without changing the prior log entry.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:24:28+05:30] Step 3 — full-run result received
+
+User Prompt (verbatim, secrets redacted):
+<shell id="sh_171ea1235001VkWxKZ9YXA9sB2" state="completed" command="set -a
+source /Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26/.env
+set +a
+export PRAMAANTRACE_LLM_CACHE=/private/var/folders/p6/skhrv32s2nl4mtknn7s6mj9c0000gn/T/opencode/investigator-full-cache.sqlite3
+python3 code/run.py --output output.csv > /private/var/folders/p6/skhrv32s2nl4mtknn7s6mj9c0000gn/T/opencode/investigator-full-run.txt 2>&1">
+(no output)
+
+Agent Response Summary:
+Inspected the supplied full-run output using only safe summary fields. The process is finished; the run validated 518 rows and the output hash is byte-identical to the baseline. It attempted 509 authorized cases, completed 0, fell back 509, recorded 1,527 network calls including 1,018 retries, and 509 failed requests; cache responses and token usage were 0 and reported cost was $0. Agent output is dropped for no measurable gain.
+
+Actions:
+* Checked process state, sanitized run-log summary, cache row/token counters, and output hashes; did not open or print `.env` or any key.
+* Verified output.csv and output_baseline.csv both have SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed and identical bytes.
+* Updated HANDOFF.md with full-run outcome and remaining unverified items; appended this correction to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:28:31+05:30] Step 4 — submission guard
+
+User Prompt (verbatim, secrets redacted):
+The previous response was interrupted. Continue from where you left off without repeating completed content.
+
+Agent Response Summary:
+Added the repository-root submission guard with separate PASS/FAIL items, a nonzero exit on failures, dataset-derived AST hardcoding checks, secret/archive/log checks, and explicit use of the existing pipeline validator. The deliberately bad CSV and malformed-step tests pass; the repository suite passed. The only current guard failure is legacy log metadata that cannot be rewritten under the append-only rule.
+
+Actions:
+* Added `code/tools/submission_guard.py` and `code/tests/test_submission_guard.py`; added a repo-root run instruction to `code/README.md`.
+* Ran `python3 -m pytest code/tests -q` → 97 passed, 32 subtests passed.
+* Ran `python3 code/check_source_literals.py` → PASS.
+* Ran `python3 code/tools/submission_guard.py`: output, row count/order, JSON, operations/states, numbering, ordering, evidence citations/cutoffs, pipeline validator, existing archive, secret scan, and hardcoding scan PASS; log format FAIL (15 legacy issues); exit 1.
+* Updated HANDOFF.md and appended this entry. Existing `code.zip` will be rebuilt in Step 8.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:37:03+05:30] Step 5 — ablation and custom cases
+
+User Prompt (verbatim, secrets redacted):
+5. FEATURE B: ablation report in code/evaluation/. Score against dataset/sample_output.csv: status, step (tuple-matched and positional), field, sequence accuracy. Ablation table: rules only; rules + linkage; rules + agent; rules + agent + validator; plus safeguards on/off where cheap (verifier on/off). Per variant: model call count, tokens, accuracy, agent gain over baseline, fallback rate. Write code/evaluation/decision_log.md: each change tried, measured result, kept or reverted, why. At least 3 custom test cases (not copies of samples): old-email request; legal hold or retention; replica drift; plus an adversarial case with instruction-like text inside a request or evidence file (must be ignored and still validate). Add cases for completion conditions (c) retained-record identifiers and (d) missing retained record if absent. Report honestly where the agent does not help.
+
+Agent Response Summary:
+Measured the rules-only and rules-plus-linkage variants on the public 32-case sample, added the ablation and decision-log reports, and added an adversarial instruction-like request test that still validates the evidence-driven result. Existing synthetic tests cover historical email, retention, replica drift, tombstone identifiers, and missing retained records. Agent sample output was byte-identical to baseline; the completed full run also had no gain and 100% fallback.
+
+Actions:
+* Ran sample-only deterministic variants with `--disable-agent`; rules-only: 27/32 statuses, 113/193 tuple recall, 68/193 positional exact steps, 638/1351 fields, 2/32 sequences; rules+linkage: 29/32, 161/193, 122/193, 987/1351, 12/32.
+* Added `code/evaluation/ablation_report.md` and `code/evaluation/decision_log.md`.
+* Added adversarial-request coverage to `code/tests/test_custom_cases.py`; targeted custom/completion tests: 11 passed.
+* Ran `python3 -m pytest code/tests -q` → 98 passed, 32 subtests passed.
+* Updated HANDOFF.md and appended this record.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:40:18+05:30] Step 6 — evaluation and usage reports
+
+User Prompt (verbatim, secrets redacted):
+6. REPORTS. Write code/evaluation/evaluation_report.md (all metrics, ablation, custom cases, failures and fixes, limits: 32 samples are a weak estimate for 518 and half B is not a blind holdout, unverified items) and code/evaluation/usage_report.md (providers, models, call count, input/output tokens total and average, estimated cost per model and overall; state zero plainly if no calls). Use only real numbers from the final run.
+
+Agent Response Summary:
+Updated the evaluation report with current sample and positional metrics, ablation links, custom cases, failures/fixes, non-blind split and weak-sample limits, and unverified items. Replaced the stale no-agent usage report with measured full-run OpenRouter usage and separately reported the prior sample run; no credentials were read or included.
+
+Actions:
+* Updated `code/evaluation/evaluation_report.md`, `code/evaluation/usage_report.md`, `ablation_report.md`, and `decision_log.md`.
+* Reported the full run as 1,527 network attempts, 1,018 retries, 509 failed requests, 0 tokens and $0.00000000; sample run separately as 97 calls, 172,870 tokens and $0.00.
+* Ran `python3 code/check_source_literals.py` → PASS and `git diff --check` → PASS.
+* Updated HANDOFF.md; appended this entry.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:42:04+05:30] Step 7 — notes and interview sheet
+
+User Prompt (verbatim, secrets redacted):
+7. NOTES AND INTERVIEW SHEET. Update NOTES.md: tried / reverted / why; and a one-page interview cheat sheet: architecture and why code decides final steps; how audit_at is enforced (store gate and every tool); how replica drift is detected; how the agent's gain was measured (or that it showed none); what still fails; what is unverified; which AI tools were used (log shows several agents/models; be factual).
+
+Agent Response Summary:
+Appended M5 trials, measured results, keep/drop decisions, and unverified items to NOTES.md without altering historical notes. Added a concise INTERVIEW.md describing the architecture, deterministic authority, audit_at enforcement, replica drift, no measurable agent gain, remaining failures, and cautiously attributed AI tools/models from the append-only log.
+
+Actions:
+* Updated `NOTES.md`; added `INTERVIEW.md`.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:45:32+05:30] Step 8 — final packaging
+
+User Prompt (verbatim, secrets redacted):
+8. FINAL PACKAGING. Regenerate output.csv (the baseline-or-agent choice from step 3); report row count, SHA-256, COMPLETE/INCOMPLETE/NOT_APPLICABLE counts. Run the tests. Rebuild the zip with package_submission.py (code/ contents + README + evaluation/ reports; no dataset/, .env, caches, keys). Run submission_guard.py and show its full output. List the zip at depth 2. Confirm log.txt is current and append-only.
+
+Agent Response Summary:
+Regenerated the selected baseline-only output, reran the full test suite, and rebuilt the package. The output validates at 518 rows and matches `output_baseline.csv` byte-for-byte. The package has 52 entries and passes packaging exclusions/secret checks; the standalone guard exits 1 solely because of 15 legacy log-format issues, which remain untouched under the append-only rule.
+
+Actions:
+* Ran `python3 code/run.py --disable-agent`: Cases 518; COMPLETE=133, INCOMPLETE=376, NOT_APPLICABLE=9; Validation PASS.
+* Verified exact header, sorted IDs, output SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed, and byte equality with `output_baseline.csv`.
+* Ran `python3 -m pytest code/tests -q` → 98 passed, 32 subtests passed.
+* Ran `python3 code/package_submission.py` → Created `code.zip`, 52 entries, exclusions and secret-like-content checks PASS; listed root and one-level archive paths.
+* Ran `python3 code/tools/submission_guard.py`: all output, pipeline, archive, secret, and hardcoding checks PASS; log format FAIL (15 historical issues); exit 1.
+* Updated HANDOFF.md and appended this entry; log remains append-only.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:16:45+05:30] Final-task Step 1 — intent negation fix
+
+User Prompt (verbatim, secrets redacted):
+1. FINISH THE INTENT FIX (case_539 class). Land the negation fix ... keep failing-test-first; add positive regression tests; re-check across all 518 that only the intended case flips.
+
+Agent Response Summary:
+Failing test first proved the classifier counted "information request, not a request to erase it" as deletion; implemented three general negation patterns in intent.py. Positive erasure wording still authorizes. Full-set verification: exactly 1 flip (case_539 True->False), 0 flips on the 32 samples.
+
+Actions:
+* Edited code/tests/test_baseline.py (RED) then code/pramaantrace/intent.py (GREEN).
+* pytest IntentTests: negation test failed pre-fix; test_baseline.py 8 passed + 32 subtests after.
+* Cross-518 diff of old vs new pattern sets: full flips=1 (case_539), sample flips=0.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:17:54+05:30] Final-task Step 2 — zero-match case audit
+
+User Prompt (verbatim, secrets redacted):
+2. THE OTHER 12 ZERO-MATCH CASES. Per-case temporal-gate audit ... fix resolver if plausible miss; else UNRESOLVED in reports. Never invent evidence IDs.
+
+Agent Response Summary:
+All 12 cases resolve to exactly one identity but return 0 pre-cutoff (and even 0 any-time) record hits and 0 data-flow log hits for every identifier. case_53's linked support_1034 exists only post-cutoff; case_61's object_19 has no stored evidence. Every attributed data_flow_* line names an unrelated owner via correlation_key. Verdict: 12 UNRESOLVED; case_539 was the separate intent bug fixed in step 1.
+
+Actions:
+* Ran identity/identifier hit audit per case (output shown in conversation).
+* Updated HANDOFF.md with the per-case verdict and ownership proof; appended log.
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:18:48+05:30] Final-task Step 3 — agent connectivity diagnostic, STOP
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT: one time-boxed diagnostic ... single connectivity call ... show HTTP status and error body (key redacted) ... STOP if still failing; do NOT run the 518-case agent again.
+
+Agent Response Summary:
+One OpenRouter call with the environment key returned HTTP 429 free-models-per-day (X-RateLimit-Remaining: 0); the key was never printed. This identifies the provider's daily free-tier limit as the root cause of the prior 509/509 fallback run; the model ID and headers were accepted. Agent work stopped per instruction: no tool call, no 518-case run, baseline remains the submission.
+
+Actions:
+* Ran the single connectivity call; captured status/body with key redacted.
+* Updated evaluation_report.md (root cause + diagnostic), usage_report.md (diagnostic table), ablation_report.md and decision_log.md (diagnostic row).
+* Appended this log entry; HANDOFF to be updated in the step-5 batch.
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:23:53+05:30] Final-task Step 4 — guard opt-out + legacy-log exemption
+
+User Prompt (verbatim, secrets redacted):
+4. GUARD. Finish submission_guard.py fixes (archive-path normalization). Strict default; explicit env opt-out default OFF printing UNRESOLVED/WARN never PASS; documented narrow exemption for legacy log entries; run guard strict and show full output.
+
+Agent Response Summary:
+Added PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE (default OFF): strict mode keeps a hard FAIL on INCOMPLETE rows without a full plan; with the variable set the guard prints WARN + "UNRESOLVED" lines listing the affected case IDs and the exit code ignores that line only. log.txt is append-only, so the 14 legacy nonconforming entries (model=unknown/unverified placeholders and correction notes without context blocks, one also with a non-ISO timestamp) are waived through a documented, entry-numbered code/tools/log_exemptions.txt; the guard reports how many exemptions it applied and every non-listed entry must comply. Full suite: 111 tests passed. Strict run: FAIL INCOMPLETE plans include all phases, exit 1; log format PASS (14 documented legacy exemptions), everything else PASS. Opt-out run: same lines with WARN ..., exit 0 (17 PASS + 1 WARN).
+
+Actions:
+* Edited code/tools/submission_guard.py (warning state, _format_result/_exit_code, env opt-in, _load_log_exemptions, per-entry timestamp/fields exemption, WARN printing).
+* Added tests to code/tests/test_submission_guard.py (17 guard tests).
+* Created code/tools/log_exemptions.txt (14 documented legacy entries with reasons).
+* Documented both opt-outs in code/README.md.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:26:26+05:30] Final-task Step 5 — regenerate, leakage check, eval
+
+User Prompt (verbatim, secrets redacted):
+5. REGENERATE AND VALIDATE. Run all tests. Re-run the leakage check (sample_output.csv moved away, output.csv byte-identical, restored). Regenerate output.csv: 518 rows, sorted, SHA-256, counts. Two consecutive runs must match. Re-run evaluate.py.
+
+Agent Response Summary:
+111 tests passed. Two consecutive full runs produced identical SHA-256 6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd; output.csv has 518 rows: COMPLETE=133, INCOMPLETE=375, NOT_APPLICABLE=10 (case_539 flips to NOT_APPLICABLE with steps_json=[]). Leakage re-check: with dataset/sample_output.csv moved away the run reproduced the identical SHA, then the file was restored. Sample eval: status 29/32, tuple precision 161/161, tuple recall 161/193, fields 987/1351, sequences 12/32; sort contract PASS; zero sample regression from the intent fix.
+
+Actions:
+* python3 code/run.py (three times, plus once with sample_output.csv removed).
+* Captured evaluate.py summary.
+* Committed regenerated output.csv with this log entry.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:29:13+05:30] Final-task Step 6 — reports and notes refresh
+
+User Prompt (verbatim, secrets redacted):
+6. REPORTS AND NOTES. Update evaluation_report.md (final metrics, ablation, custom cases, 13 zero-match outcome, limits), usage_report.md, decision_log.md, NOTES.md with interview cheat sheet, HANDOFF.md. State several AI tools/models worked on the repo and the final agent made no successful calls.
+
+Agent Response Summary:
+evaluation_report.md now records the corrected full-set counts (133/375/10), SHA-256 6447f3ed..., the case_539 intent fix with its one-flip verification, the 12 UNRESOLVED case IDs with per-case temporal-gate justification, and the honest guard/agent position. usage_report.md separates the final 0-call producing run from the historical 1,527-attempt run and the sample/diagnostic runs, and states that several AI coding tools/models worked on the repo via log.txt while the prediction agent made no successful calls. decision_log.md gained rows for the intent fix, zero-match audit verdict, guard opt-out/exemptions, and final regeneration. NOTES.md gained the final-session tried/kept/reverted section; INTERVIEW.md cheat sheet refreshed (remaining-failure list, agent stop via 429, legacy exemptions, attribution including final session glm-5.3-flash-free).
+
+Actions:
+* Edited code/evaluation/evaluation_report.md, usage_report.md, ablation_report.md, decision_log.md.
+* Edited NOTES.md and INTERVIEW.md; updated HANDOFF.md ledger.
+* Appended this log entry.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:31:58+05:30] Final-task Step 7 — packaging and secret scans
+
+User Prompt (verbatim, secrets redacted):
+7. PACKAGE AND GITHUB-SAFETY. Rebuild zip; list at depth 2; confirm exclusions. Secret scan working tree, zip, log.txt, git history (redacted); stop if a key ever appeared in a commit. Confirm .gitignore coverage; git status, git remote -v; NO push; commit locally. Confirm log.txt current and append-only.
+
+Agent Response Summary:
+Rebuilt code.zip (53 files; check_source_literals scope fix was first required because the reports must name UNRESOLVED case IDs: scan now exempts evaluation/*.md documents and tests/ fixtures, and NEWLY scans prompt .txt files; a real dataset literal in code or prompts still fails, verified by new tests; 114 tests pass). Zip listing verified at depth 2 with no dataset/, .env, caches, __pycache__, .git, nested archives. Detailed scan: the real key (73 chars) appears in NO working-tree file, NOT in log.txt, NOT in code.zip, and NOT anywhere in git history (git log -p --all). Public provider config (base URL, model name) appears in docs and is not a secret; one Bearer-pattern hit is a pytest fixture string. .gitignore now covers .env, caches incl. sqlite, output_baseline.csv, .DS_Store (plus .agents/, skills-lock.json untracked noise). No push performed; remotes listed only. log.txt has 52 entries and remains append-only; guard log-format check passes with 14 documented legacy exemptions.
+
+Actions:
+* Edited code/check_source_literals.py + tests (RED->GREEN), rebuilt code.zip, updated .gitignore.
+* Ran guard on rebuilt zip: secret scan PASS over 112 files; exclusions PASS.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:32:16+05:30] Final-task completion marker
+
+User Prompt (verbatim, secrets redacted):
+(identical to step 7/8 prompts on 2026-10-25; final report delivered at end)
+
+Agent Response Summary:
+HANDOFF.md ledger closed: all final-task steps 1-8 complete; step 8's report is the session's last output. key-scan outcome re-verified: the environment LLM key appears in no tracked file, the zip, log.txt, or any commit; the push-stopping condition (key in history) is FALSE. Submission remains baseline-only with the documented intent fix.
+
+Actions:
+* Updated HANDOFF.md final ledger; committed.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

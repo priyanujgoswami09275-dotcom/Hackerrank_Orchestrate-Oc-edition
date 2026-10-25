@@ -1,40 +1,28 @@
-# PramaanTrace baseline
+# PramaanTrace deletion audit
 
-This package contains the deterministic deletion-audit baseline and the
-post-M4 local media reader. Code—not an LLM—classifies requests, assesses
-evidence, plans steps, validates the output, and writes the CSV.
+PramaanTrace audits deletion requests using the enriched deterministic evidence
+pipeline. If `LLM_API_KEY` is configured, a bounded LLM investigator runs
+automatically to propose additional resource links. Deterministic code replays
+and verifies every proposed link, applies policy, plans steps, validates the
+contract, and writes the CSV. The model cannot choose the final status or steps.
 
 ## Requirements and setup
 
 - Python 3.10 or newer
-- `pypdf` for text extraction from PDFs
-- macOS: Swift with the Apple Vision and PDFKit frameworks for OCR
-- Portable fallback: Tesseract available on `PATH`, plus Pillow,
-  `pytesseract`, and `pypdfium2`. Tesseract reads images and rasterized scanned
-  PDF pages when Apple Vision is unavailable. Selectable PDF text is extracted
-  with `pypdf` first. If no usable OCR backend is installed, the run reports
+- Install dependencies:
+
+  ```bash
+  python3 -m pip install -r requirements.txt
+  ```
+
+- `pypdf` reads selectable PDF text. On macOS, Swift with Apple Vision and
+  PDFKit provides OCR. Portable fallback: Tesseract on `PATH`, plus Pillow,
+  `pytesseract`, and `pypdfium2`. If no OCR backend is available, the run reports
   cutoff-eligible media it skipped rather than claiming it was read.
 
-Install Python dependencies:
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-No API key is required. The investigator agent milestone has not been
-implemented, so `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, and
-`AGENT_STEP_CAP` are not consumed by this baseline and there are no model
-calls. On macOS, set `SWIFT_EXECUTABLE` only if `swift` is not on `PATH`.
-`PRAMAANTRACE_MEDIA_CACHE` optionally chooses an OCR cache directory; by
-default it is outside this repository (`~/Library/Caches` on macOS or
-`$XDG_CACHE_HOME` / `~/.cache` elsewhere). The cache can contain extracted
-personal data and must not be submitted or included in `code.zip`. Set
-`PRAMAANTRACE_DISABLE_MEDIA_CACHE=1` to bypass cache reads and writes, for
-example when checking cold-run determinism. A shared cache directory can be
-pointed to with `PRAMAANTRACE_MEDIA_CACHE` when securely reusing extracted text
-on another machine. Without that cache, the other machine reruns its available
-OCR backend; cross-platform OCR text equivalence is not guaranteed. The
-submitted `output.csv` is standalone and does not require the cache to be read.
+No LLM credential is required for the enriched deterministic baseline. Without
+`LLM_API_KEY`, the run makes no model calls. With a key, model calls are
+automatic unless `--disable-agent` is provided.
 
 ## Run
 
@@ -44,69 +32,123 @@ From this `code/` directory:
 python3 run.py
 ```
 
-The command reads participant-visible files under `../dataset/`, validates all
-518 predictions, and writes `../output.csv`. Evidence is time-gated by
-`audit_at`. Media is read only if its manifest capture time is eligible for at
-least one request in the run. Image OCR uses Apple Vision on macOS when
-available, then falls back to Tesseract. Text-bearing PDFs use `pypdf`; scanned
-PDFs use Vision or, when available, PyPDFium2 rendering plus Tesseract.
-Extracted text is cached outside the package.
+The command reads participant-facing files under `../dataset/`, validates the
+requests it processes, and writes `../output.csv` by default. The full dataset
+contains 518 requests. Evidence is time-gated by each request's `audit_at`.
+Media is read only when its manifest capture time is eligible for at least one
+request. Extracted text is cached outside the package.
 
-### Evidence-linkage enrichment flag
-
-`PRAMAANTRACE_ENRICH=1` enables the evidence-linkage enrichment pass: system
-name normalization (`support_replica` → `support_platform`,
-`search_index_service` → `search_service`), structured JSON-lines log parsing,
-trace pairing on subject-reference echoes, support-attachment ownership from
-handover files, window-anchored close-out verifications, evidence-named
-cross-resource references, and unique-wave account derivation from the
-deletion worker's own operation window. With the flag unset every behavior is
-exactly the pre-enrichment baseline. On the 32 public samples, the enriched run
-matches 29/32 deletion statuses with zero extra steps, compared with 27/32 and
-two extra steps for the baseline; the submitted `output.csv` was produced with
-the flag set:
+To force deterministic-only operation even when credentials are present:
 
 ```bash
-PRAMAANTRACE_ENRICH=1 python3 run.py
+python3 run.py --disable-agent
 ```
 
+This still uses the enriched deterministic baseline. For a structured-only
+media comparison, add `--disable-media`.
 
-## One-command sample evaluation
+## Investigator configuration and privacy
 
-From this `code/` directory, run the baseline on the public sample and evaluate
-the generated predictions against all 32 sample answers:
+Set these environment variables to enable the investigator:
+
+- `LLM_API_KEY`: provider API key.
+- `LLM_BASE_URL`: OpenAI-compatible API base URL; for OpenRouter, for example,
+  use `https://openrouter.ai/api/v1`. The client appends
+  `/chat/completions`. HTTPS is required except for loopback development URLs.
+- `LLM_MODEL`: provider model identifier.
+- `AGENT_STEP_CAP`: optional completion limit per deletion-authorized case,
+  from 1 to 64; default is 8.
+- `LLM_INPUT_COST_PER_1M` and `LLM_OUTPUT_COST_PER_1M`: optional per-million
+  token rates used only when the provider omits cost from its usage response.
+- `PRAMAANTRACE_LLM_CACHE`: optional SQLite response-cache path. By default it
+  is outside this repository under `~/.cache/pramaantrace/`.
+
+The program does not load `.env` automatically. For a local uncommitted `.env`
+file in a bash/zsh shell, export its values before running:
+
+```bash
+set -a
+source .env
+set +a
+python3 run.py
+```
+
+Never commit `.env` or include it in `code.zip`. The configured provider receives
+the request's cutoff-resolved identifiers and the participant-visible evidence
+needed for investigation. Model responses and tool results are cached locally
+and may contain sensitive evidence excerpts; protect the cache and do not
+submit or package it. API keys, prompts, and evidence contents are not printed
+in the run summary. Use `--disable-agent` to prevent provider calls.
+
+## Evidence-linkage enrichment
+
+Enrichment is enabled by default. It includes system normalization, structured
+JSON-lines parsing, trace pairing, support-attachment ownership, request-window
+close-out checks, structured cross-resource references, and unique-wave account
+derivation. Set `PRAMAANTRACE_ENRICH=0` (also `false`, `no`, or `off`) to disable
+these enrichment behaviors for a baseline comparison. Explicit `1`, `true`, or
+`yes` enables them.
+
+On the 32 public samples, the enriched deterministic baseline scores 29/32
+deletion statuses, with 32 missing and zero extra steps; the opt-out baseline
+scores 27/32 with 80 missing and two extra steps. These are baseline results.
+The first measured agent run produced a byte-identical CSV to the enriched
+baseline: 17 sample cases completed investigation, 15 fell back, and 36
+candidate links were accepted without changing any output rows. No LLM accuracy
+gain is claimed from that sample run; the full-run measurements are recorded in
+the evaluation reports.
+
+## Sample evaluation and checks
+
+From this directory:
 
 ```bash
 python3 evaluate.py
 ```
 
-The harness prints status, step, field, and sequence accuracy plus per-case
-differences. Use the structured-only mode to measure the media delta:
+The harness scores all 32 public samples for status, step, field, and sequence
+accuracy. If an API key is configured, this command also runs the investigator
+because it calls `run.py`; use `python3 run.py --disable-agent` for a direct
+deterministic output, or temporarily unset the key for baseline evaluation.
+To measure the media delta, run:
 
 ```bash
 python3 evaluate.py --disable-media
 ```
 
-To score a candidate CSV already generated for the 32 sample requests, use
-`python3 evaluation/harness.py path/to/sample-output.csv`.
-
-For a corrected per-case multiset diff that ignores `step_no` and lists unmatched
-expected/predicted step contents, run:
-
-```bash
-python3 evaluation/failure_analysis.py
-```
-
-It runs a temporary sample baseline and does not use sample answers at runtime.
-One-field differences are paired separately; unpaired steps remain categorized
-as missing or extra rather than being guessed from their array positions.
+Score an existing candidate CSV with
+`python3 evaluation/harness.py path/to/sample-output.csv`. For a per-case
+multiset diff, use `python3 evaluation/failure_analysis.py`.
 
 Other checks:
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m pytest tests -q
 python3 check_source_literals.py
 ```
+
+From the repository root, run the submission guard (it requires the
+participant-facing `dataset/` directory and supplements the pipeline validator):
+
+```bash
+python3 code/tools/submission_guard.py
+```
+
+The guard is strict by default and exits 1 on any FAIL. Two explicit, narrow
+opt-outs exist; neither turns a failing condition into PASS:
+
+- `PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE=1`: cases whose `INCOMPLETE` row has
+  no findings/remediation/verification because no participant-visible evidence
+  exists at or before `audit_at` are printed as `WARN ... UNRESOLVED` lines
+  listing the affected case IDs. These cases stay unresolved and must be listed
+  in the evaluation reports; the exit code treats the admitted line as a
+  warning, not a pass. Without the variable the same check is a hard FAIL.
+- `code/tools/log_exemptions.txt`: `log.txt` is append-only, so entries written
+  by earlier sessions before the model-verification convention cannot be edited
+  or removed. That file lists — one per line with a reason — exactly which
+  historical entry numbers of `log.txt` are waived from the AGENTS.md format
+  check. The guard states how many documented exemptions it applied; every
+  non-listed entry must fully comply, so new violations cannot be masked.
 
 The source scan reads participant-facing request and evidence manifests and
 fails if code embeds a dataset case ID, evidence ID, or evidence filename.
@@ -119,15 +161,17 @@ From this directory:
 python3 package_submission.py
 ```
 
-The script creates `../code.zip` from the **contents** of this directory, so
-the archive contains `evaluation/` at its root as required. It applies
-exclusions, verifies the archive, and prints every included path.
+The script creates `../code.zip` from the contents of this directory, verifies
+the archive, and prints each included path. The archive must not contain
+`dataset/`, `.env`, model/media caches, credentials, or nested archives.
 
-## Current scope and limitations
+## Scope and limitations
 
-The deterministic baseline and local media extraction are implemented; the
-tool-using investigator agent is not. The 32 public samples are a weak estimate
-of performance on 518 evaluation requests. A missing required retained record
-is classified `INCOMPLETE`; the current allowed operation vocabulary has no
-finding or remediation for restoring such a record, so the planner does not
-invent one.
+The investigator is advisory and read-only. It can only suggest links supported
+by case-scoped tool observations; deterministic replay rejects unsupported,
+ambiguous, cross-subject, and post-cutoff candidates. API, tool, and verification
+failures fall back to that case's enriched deterministic baseline. Public sample
+results are a small estimate of performance on the full dataset. A missing
+policy-required retained record is classified `INCOMPLETE`; the allowed
+operation vocabulary has no finding or remediation for restoring it, so the
+planner does not invent one.
