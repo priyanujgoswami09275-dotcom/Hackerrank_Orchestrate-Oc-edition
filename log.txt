@@ -1149,3 +1149,24 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:26:26+05:30] Final-task Step 5 — regenerate, leakage check, eval
+
+User Prompt (verbatim, secrets redacted):
+5. REGENERATE AND VALIDATE. Run all tests. Re-run the leakage check (sample_output.csv moved away, output.csv byte-identical, restored). Regenerate output.csv: 518 rows, sorted, SHA-256, counts. Two consecutive runs must match. Re-run evaluate.py.
+
+Agent Response Summary:
+111 tests passed. Two consecutive full runs produced identical SHA-256 6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd; output.csv has 518 rows: COMPLETE=133, INCOMPLETE=375, NOT_APPLICABLE=10 (case_539 flips to NOT_APPLICABLE with steps_json=[]). Leakage re-check: with dataset/sample_output.csv moved away the run reproduced the identical SHA, then the file was restored. Sample eval: status 29/32, tuple precision 161/161, tuple recall 161/193, fields 987/1351, sequences 12/32; sort contract PASS; zero sample regression from the intent fix.
+
+Actions:
+* python3 code/run.py (three times, plus once with sample_output.csv removed).
+* Captured evaluate.py summary.
+* Committed regenerated output.csv with this log entry.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
