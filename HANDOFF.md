@@ -66,15 +66,19 @@ operational resume point (kept out of code.zip; committed to git).
 
 ### Step 3 agent gate
 
-- Agent unavailable in this session: `.env` is absent and the current shell
-  has no `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, or
-  `AGENT_CALL_BUDGET`. No connectivity/tool-call test could be authenticated.
-- The pre-existing 518-case `code/run.py` process (PID 13610) remains active;
-  its log is empty, cache has 0 responses, and no usage report was produced.
-  It was not duplicated or treated as a completed test. Verified completed
-  calls/tokens: 0; any in-flight attempt count is unverified. No traces,
-  ablation run, or agent output is claimed. Continue to Step 4 and retain the
-  committed baseline unless later completed evidence proves agent gain.
+- The full run sourced the main checkout's uncommitted `.env` and completed.
+  The sanitized run log reports `nvidia/nemotron-3.5-super-vl:free` via
+  `openrouter.ai`, 518 rows validated, and the same output hash as the
+  baseline. It attempted 509 authorized cases; 0 completed, 509 fell back,
+  0 candidates were accepted/rejected, 1,527 network calls were made (1,018
+  retries), and 509 requests failed. Cache responses and input/output tokens
+  were 0; reported cost was $0. The run therefore had no measurable output
+  gain and the baseline remains selected.
+- A separate connectivity/tool-call test and three raw case traces were not
+  captured. The full run is the only measured attempt; do not make another
+  provider call just to fabricate traces. The second warm-cache hash check,
+  budget skips, and per-case attempt details remain unverified. The worktree
+  itself has no `.env`; the full run command came from the main checkout.
 
 ## Latest metrics (32 public samples)
 

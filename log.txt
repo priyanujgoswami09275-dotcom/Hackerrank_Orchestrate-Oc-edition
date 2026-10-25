@@ -929,3 +929,29 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:24:28+05:30] Step 3 — full-run result received
+
+User Prompt (verbatim, secrets redacted):
+<shell id="sh_171ea1235001VkWxKZ9YXA9sB2" state="completed" command="set -a
+source /Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26/.env
+set +a
+export PRAMAANTRACE_LLM_CACHE=/private/var/folders/p6/skhrv32s2nl4mtknn7s6mj9c0000gn/T/opencode/investigator-full-cache.sqlite3
+python3 code/run.py --output output.csv > /private/var/folders/p6/skhrv32s2nl4mtknn7s6mj9c0000gn/T/opencode/investigator-full-run.txt 2>&1">
+(no output)
+
+Agent Response Summary:
+Inspected the supplied full-run output using only safe summary fields. The process is finished; the run validated 518 rows and the output hash is byte-identical to the baseline. It attempted 509 authorized cases, completed 0, fell back 509, recorded 1,527 network calls including 1,018 retries, and 509 failed requests; cache responses and token usage were 0 and reported cost was $0. Agent output is dropped for no measurable gain.
+
+Actions:
+* Checked process state, sanitized run-log summary, cache row/token counters, and output hashes; did not open or print `.env` or any key.
+* Verified output.csv and output_baseline.csv both have SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed and identical bytes.
+* Updated HANDOFF.md with full-run outcome and remaining unverified items; appended this correction to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
