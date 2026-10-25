@@ -24,7 +24,7 @@ passed `validate_rows`.
 | Rules only (`PRAMAANTRACE_ENRICH=0`) | 0 / 0 | 27/32 (84.38%) | 113/115 (98.26%) / 113/193 (58.55%) | 68/193 (35.23%) | 638/1,351 (47.22%) | 2/32 (6.25%) | N/A | −2 statuses; −48 matched tuples; −54 positional steps; −349 fields; −10 sequences |
 | Rules + linkage (`PRAMAANTRACE_ENRICH=1`) | 0 / 0 | 29/32 (90.62%) | 161/161 (100%) / 161/193 (83.42%) | 122/193 (63.21%) | 987/1,351 (73.06%) | 12/32 (37.50%) | N/A | Baseline for agent comparison |
 | Rules + agent, verifier/validator off | Not run / not measured | — | — | — | — | — | — | No safe supported mode; bypassing code verification was not justified |
-| Rules + agent + verifier + output validator (prior 32-case run) | Calls/tokens were not recorded | 29/32; byte-identical to rules + linkage | 161/161 / 161/193 | 122/193 | 987/1,351 | 12/32 | 15/32 (46.88%) | No measurable gain; 17 investigations completed, 36 candidates accepted, 0 rejected |
+| Rules + agent + verifier + output validator (prior 32-case run) | 97 network calls / 172,870 tokens (148,681 input + 24,189 output); $0 reported | 29/32; byte-identical to rules + linkage | 161/161 / 161/193 | 122/193 | 987/1,351 | 12/32 | 15/32 (46.88%) | No measurable gain; 17 investigations completed, 36 candidates accepted, 0 rejected; 28 retries and 13 failed requests |
 | Rules + agent + verifier + output validator (full run) | 1,527 network attempts / 0 input + 0 output tokens; $0 reported | Not scoreable against hidden labels; output byte-identical to baseline | Same public-sample baseline; no new sample score | Same | Same | Same | 509/509 (100%) | No measurable gain; agent output dropped |
 
 The full run reported 509 attempted authorized cases, 0 completed, 509
@@ -44,11 +44,11 @@ full-run output; the submission prediction file remains baseline-only.
 | Output contract validator enabled | Baseline and agent CLI outputs pass the validator; the submission guard also re-ran it on all 518 rows. | Keep enabled. |
 | Output contract validator disabled | Not run; it is not an optional runtime variant. | Do not disable. |
 
-Agent sample call/token totals and raw traces for three sample cases were not
-captured by the previous sample run. The full-run cache contains 0 responses,
-so no raw successful traces exist to report. A second warm-cache full-run hash
-comparison was not performed; the only measured full-run hash equals the
-preserved baseline.
+The prior sample run did not preserve raw per-case traces for three sample
+cases. Its aggregate usage is available above. The full-run cache contains 0
+responses, so no raw successful full-run traces exist to report. A second
+warm-cache full-run hash comparison was not performed; the only measured
+full-run hash equals the preserved baseline.
 
 ## Custom cases
 

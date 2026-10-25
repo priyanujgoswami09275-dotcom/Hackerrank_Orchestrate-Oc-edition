@@ -9,7 +9,7 @@ files. The current root `output.csv` is the selected deterministic baseline;
 | Rules-only baseline (`PRAMAANTRACE_ENRICH=0`, media on) | 27/32 statuses; 113/115 tuple precision, 113/193 tuple recall; 68/193 exact positional steps; 638/1,351 fields; 2/32 sequences. | Keep as ablation comparator. | It is deterministic and provides the rules-only reference, but linkage omission loses 2 statuses and 48 expected tuples versus the enriched run. |
 | Enriched identity/linkage rules (`PRAMAANTRACE_ENRICH=1`, media on) | 29/32 statuses; 161/161 tuple precision, 161/193 tuple recall; 122/193 positional exact steps; 987/1,351 fields; 12/32 sequences. | Keep as final baseline. | It improves every reported sample metric over rules-only. The 32-case result is descriptive, not a blind estimate for 518 cases. |
 | Support `customer_reference` as shared support context rather than prohibited direct PII (M4d) | Historical trial: status 24/32 → 27/32, B status 11/16 → 13/16, and B tuple recall 43/100 → 68/100. | Kept under the updated gate: status or tuple steps must improve overall without regressing either on B. | The policy retains shared support context; direct contact fields, not the stable customer reference, determine whether identifiers remain exposed. Earlier field-only keep/revert scoring was superseded by the tuple criterion. |
-| Agent with verifier on, public sample (prior session) | CSV byte-identical to enriched baseline; 17 investigations completed, 15 fell back, 36 candidates accepted, 0 rejected. Sample call/token totals were not recorded. | Drop agent-derived predictions. | No status or tuple-step gain; source remains available for audit, but the submission CSV uses the baseline. |
+| Agent with verifier on, public sample (prior session) | CSV byte-identical to enriched baseline; 17 investigations completed, 15 fell back, 36 candidates accepted, 0 rejected; 97 network calls, 28 retries, 13 failed requests, 148,681 input + 24,189 output tokens, $0 reported. | Drop agent-derived predictions. | No status or tuple-step gain; source remains available for audit, but the submission CSV uses the baseline. |
 | Agent with verifier and output validator on, full dataset | 518 rows validated; 509 authorized cases attempted, 0 completed, 509 fallbacks; 1,527 network attempts, 1,018 retries, 509 failed requests; 0 cache responses, 0 tokens, $0 reported. Output SHA-256 equals baseline. | Drop agent-derived predictions; no retry. | No measurable gain and 100% fallback. A second warm-cache run was not made because no responses were cached and the first run had no successful calls. |
 | Agent/verifier/validator off ablations | Not run. No successful model responses or candidate traces were available; the code has no safe no-verifier mode. | Not run; keep safeguards on. | Disabling checks would weaken policy/evidence guarantees without a meaningful candidate set to measure. |
 | Submission guard and malformed-output/adversarial tests | 97 tests passed before the final added request-injection test; targeted injection test passed. Guard passes output, pipeline, archive, secret, and hardcoding checks; fails log-format check on 15 pre-existing entries. | Keep guard and tests. Keep log append-only; do not rewrite legacy entries. | The failure is surfaced honestly. Historical `model=unknown`/unverified metadata predates this turn and cannot be repaired without violating the append-only requirement. |
@@ -28,9 +28,9 @@ no restoration operation, so no invented step is emitted.
 
 ## Unverified items
 
-- The prior sample agent run has no preserved call/token totals or raw per-case
-  traces. The full run has no successful response content, so three successful
-  trace excerpts cannot be produced.
+- The prior sample agent run has aggregate call/token totals but no preserved
+  raw per-case traces. The full run has no successful response content, so
+  three successful full-run trace excerpts cannot be produced.
 - `AGENT_CALL_BUDGET` behavior and per-case budget skips were not measured.
 - No verifier-off experiment was run; it would bypass a safety boundary.
 - The 32 public cases are a weak estimate for the 518 evaluation requests, and

@@ -1001,3 +1001,25 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:40:18+05:30] Step 6 — evaluation and usage reports
+
+User Prompt (verbatim, secrets redacted):
+6. REPORTS. Write code/evaluation/evaluation_report.md (all metrics, ablation, custom cases, failures and fixes, limits: 32 samples are a weak estimate for 518 and half B is not a blind holdout, unverified items) and code/evaluation/usage_report.md (providers, models, call count, input/output tokens total and average, estimated cost per model and overall; state zero plainly if no calls). Use only real numbers from the final run.
+
+Agent Response Summary:
+Updated the evaluation report with current sample and positional metrics, ablation links, custom cases, failures/fixes, non-blind split and weak-sample limits, and unverified items. Replaced the stale no-agent usage report with measured full-run OpenRouter usage and separately reported the prior sample run; no credentials were read or included.
+
+Actions:
+* Updated `code/evaluation/evaluation_report.md`, `code/evaluation/usage_report.md`, `ablation_report.md`, and `decision_log.md`.
+* Reported the full run as 1,527 network attempts, 1,018 retries, 509 failed requests, 0 tokens and $0.00000000; sample run separately as 97 calls, 172,870 tokens and $0.00.
+* Ran `python3 code/check_source_literals.py` → PASS and `git diff --check` → PASS.
+* Updated HANDOFF.md; appended this entry.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

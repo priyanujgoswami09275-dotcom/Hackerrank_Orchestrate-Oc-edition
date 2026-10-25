@@ -105,7 +105,8 @@ operational resume point (kept out of code.zip; committed to git).
   linkage measured 29/32, 161/193, 122/193, 987/1,351, 12/32 respectively.
 - The prior sample agent CSV was byte-identical to linkage baseline (17
   completed investigations, 15 fallbacks, 36 candidates accepted, 0 rejected;
-  call/token totals not recorded). The full run made 1,527 network attempts,
+  97 network calls, 28 retries, 13 failures, 172,870 tokens, $0 reported).
+  The full run made 1,527 network attempts,
   1,018 retries, 509 failed requests, and fell back for all 509 authorized
   cases; 0 tokens/cache responses and $0 reported. Output hash matched the
   baseline. The agent output is dropped; no verifier-off run was attempted.
@@ -117,6 +118,21 @@ operational resume point (kept out of code.zip; committed to git).
 - Agent sample call totals, three raw traces, budget skips, verifier-off
   behavior, and a second warm-cache hash remain unverified; the full request
   set has no public gold labels for accuracy scoring.
+
+### Step 6 reports
+
+- Updated `code/evaluation/evaluation_report.md` with current rules/linkage and
+  positional metrics, prior sample-agent usage, full agent-run fallback results,
+  custom cases including instruction-like input, fixes, known failures, the
+  small-sample/non-blind-B limitations, and unverified items.
+- Replaced the stale no-agent usage report with the measured full run:
+  OpenRouter `nvidia/nemotron-3.5-super-vl:free`, 1,527 network attempts,
+  1,018 retries, 509 failures, 0 tokens, and $0.00000000 reported; sample-run
+  usage is reported separately (97 calls, 172,870 tokens, $0). No keys are
+  included.
+- Refreshed the ablation/decision logs with those previously recorded sample
+  usage totals. Source-literal scan passed after report updates. Full unit suite
+  most recently passed 98 tests and 32 subtests.
 
 ## Latest metrics (32 public samples)
 
