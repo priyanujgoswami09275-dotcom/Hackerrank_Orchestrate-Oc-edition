@@ -52,6 +52,9 @@ NEGATED_DELETION_PATTERNS = (
     r"\bdon['’]?t close\b",
     r"\bnever close\b",
     r"\bn[aã]o (?:solicito|quero|peço|preciso) (?:a )?(?:exclus[aã]o|excluir|apagamento|apagar)\b",
+    r"\bnot (?:a |an )?(?:request to |requests? to )?(?:delete|deletion|erase|erasure|erasing|remov(?:al|e)|purge)\b",
+    r"\bnot (?:asking|requesting) (?:for |an? )?(?:delet|eras|remov|purge)",
+    r"\bnot (?:a |an )?(?:deletion|erasure|removal) request\b",
 )
 
 NON_DELETION_ACTIONS = (

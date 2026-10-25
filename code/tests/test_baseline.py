@@ -35,6 +35,25 @@ class IntentTests(unittest.TestCase):
         )
         self.assertFalse(authorizes_deletion("Não quero a exclusão da minha conta."))
 
+    def test_negated_information_request_does_not_authorize(self) -> None:
+        self.assertFalse(
+            authorizes_deletion(
+                "Can you tell me what personal information you hold about me? "
+                "This is an information request, not a request to erase it."
+            )
+        )
+
+    def test_positive_erasure_wording_still_authorizes(self) -> None:
+        self.assertTrue(authorizes_deletion("Please erase my account and data."))
+        self.assertTrue(
+            authorizes_deletion("Delete my account and every record linked to it.")
+        )
+        self.assertTrue(
+            authorizes_deletion(
+                "I don't want you keeping my data, please erase it."
+            )
+        )
+
     def test_public_sample_intent_matches_expected_authorization(self) -> None:
         requests = read_csv_rows(ROOT / "dataset" / "sample_deletion_requests.csv")
         expected = {
