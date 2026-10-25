@@ -237,3 +237,53 @@ def test_tool_schemas_are_fixed_and_observation_ids_are_deterministic(
     assert first.observation_id == "obs_0001"
     assert second.observation_id == "obs_0002"
     assert first.result["records"]
+
+
+def test_compare_replicas_deduplicates_direct_and_structured_paths() -> None:
+    tools_module = _toolbox_type()
+    store = RecordStore()
+    store.add_record(
+        NormalizedRecord(
+            capture_id="evidence_source",
+            captured_at=AUDIT_AT,
+            topology="primary",
+            system_id="account_service",
+            resource_id="account_profile_61",
+            category="USER_PROFILE",
+            identifiers={"emails": (EMAIL,), "user_ids": (USER_ID,)},
+            attributes={"copied_profile": "account_profile_60"},
+        )
+    )
+    store.add_record(
+        NormalizedRecord(
+            capture_id="evidence_target",
+            captured_at=AUDIT_AT,
+            topology="primary",
+            system_id="account_service",
+            resource_id="account_profile_60",
+            category="USER_PROFILE",
+            identifiers={"emails": (EMAIL,)},
+            attributes={"email": EMAIL},
+        )
+    )
+    identity = ResolvedIdentity(
+        user_id=USER_ID,
+        names=("Subject",),
+        emails=(EMAIL,),
+        email_hashes=(),
+        phones=(),
+        customer_references=(),
+    )
+    toolbox = tools_module.CaseToolbox(
+        request={"case_id": "fixture", "email": EMAIL, "audit_at": AUDIT_AT},
+        identity=identity,
+        store=store,
+        activities=[],
+        rule_engine=RuleEngine([]),
+        manifest=[],
+    )
+    toolbox.dispatch("search_records", {"identifier": EMAIL})
+
+    result = toolbox.dispatch("compare_replicas", {"resource_id": "account_profile_60"})
+
+    assert [row["resource_id"] for row in result["records"]].count("account_profile_60") == 1

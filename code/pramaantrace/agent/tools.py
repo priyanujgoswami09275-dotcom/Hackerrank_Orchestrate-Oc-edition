@@ -8,6 +8,8 @@ import re
 from typing import Any, Iterable, Mapping
 
 from ..identity import ResolvedIdentity, normalize_email, normalize_phone
+from ..linkage import referenced_resource_ids
+from ..loader import system_from_resource
 from ..rules import RuleEngine
 from ..store import (
     CapturedText,
@@ -135,12 +137,16 @@ class CaseToolbox:
         self.rule_engine = rule_engine
         self.audit_at = str(request["audit_at"])
         self._cutoff = parse_timestamp(self.audit_at)
+        self._manifest_entries = tuple(dict(row) for row in manifest)
         self._manifest = {
             str(row.get("file_id", "")): dict(row)
-            for row in manifest
+            for row in self._manifest_entries
             if row.get("file_id")
         }
         self._resource_links: set[tuple[str, str, str]] = set()
+        self._subject_records: dict[
+            tuple[str, str, str, str, str], NormalizedRecord
+        ] = {}
         self._observations: list[ToolObservation] = []
 
     @staticmethod
@@ -150,6 +156,17 @@ class CaseToolbox:
     @property
     def observations(self) -> tuple[ToolObservation, ...]:
         return tuple(self._observations)
+
+    def fresh_for_replay(self) -> "CaseToolbox":
+        """Create a clean toolbox so replay cannot rely on prior mutable state."""
+        return CaseToolbox(
+            request=self.request,
+            identity=self.identity,
+            store=self.store,
+            activities=self.activities,
+            rule_engine=self.rule_engine,
+            manifest=self._manifest_entries,
+        )
 
     def _identity_values(self) -> tuple[str, ...]:
         return tuple(
@@ -302,9 +319,17 @@ class CaseToolbox:
         )[:MAX_RESULTS]
         result = []
         for record in records:
-            self._resource_links.add(
-                (record.system_id, record.resource_id, record.category)
-            )
+            key = (record.system_id, record.resource_id, record.category)
+            self._resource_links.add(key)
+            self._subject_records[
+                (
+                    record.capture_id,
+                    record.system_id,
+                    record.resource_id,
+                    record.category,
+                    record.topology,
+                )
+            ] = record
             result.append(self._record_dict(record))
         return {"records": result, "truncated": len(records) == MAX_RESULTS}
 
@@ -312,7 +337,15 @@ class CaseToolbox:
         linked_keys = {
             key for key in self._resource_links if key[1] == resource_id
         }
-        if not linked_keys:
+        referenced = {
+            linked_resource
+            for record in self._subject_records.values()
+            for linked_resource in referenced_resource_ids(
+                record.attributes,
+                own_resource_id=record.resource_id,
+            )
+        }
+        if not linked_keys and resource_id not in referenced:
             raise ToolArgumentError("resource has not been linked to this subject")
         copies: list[dict[str, Any]] = []
         scopes: list[dict[str, Any]] = []
@@ -341,6 +374,55 @@ class CaseToolbox:
                     category=category,
                 )
             )
+        if resource_id in referenced:
+            referenced_system = system_from_resource(resource_id)
+            if referenced_system is not None:
+                referenced_records = self.store.query(
+                    audit_at=self.audit_at,
+                    system_id=referenced_system,
+                    resource_id=resource_id,
+                )
+                copies.extend(self._record_dict(record) for record in referenced_records)
+                categories = {record.category for record in referenced_records}
+                for category in sorted(categories):
+                    scopes.extend(
+                        {
+                            "capture_id": scope.capture_id,
+                            "captured_at": scope.captured_at,
+                            "topology": scope.topology,
+                            "system_id": scope.system_id,
+                            "category": scope.category,
+                            "complete_listing": scope.complete_listing,
+                        }
+                        for scope in self.store.query_scopes(
+                            audit_at=self.audit_at,
+                            system_id=referenced_system,
+                            category=category,
+                        )
+                    )
+        copies = list(
+            {
+                (
+                    row["capture_id"],
+                    row["system_id"],
+                    row["resource_id"],
+                    row["category"],
+                    row["topology"],
+                ): row
+                for row in copies
+            }.values()
+        )
+        scopes = list(
+            {
+                (
+                    row["capture_id"],
+                    row["system_id"],
+                    row["category"],
+                    row["topology"],
+                ): row
+                for row in scopes
+            }.values()
+        )
         copies.sort(
             key=lambda row: (
                 row["captured_at"], row["topology"], row["capture_id"]
