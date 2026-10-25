@@ -806,3 +806,63 @@ branch=main
 repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+## [2026-10-25T13:07:02+05:30] SESSION START
+
+tool=OpenCode
+model=openai/gpt-6-luna
+Repo Root: /Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+Branch: feat/investigator-agent
+Worktree: /Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+Parent Agent: none
+Language: py
+Time Remaining: not configured
+
+## [2026-10-25T13:07:57+05:30] Step 1 — safe state and baseline fallback
+
+User Prompt (verbatim, secrets redacted):
+@ponytail FINAL MASTER TASK. Read BRIEF.md and HANDOFF.md first (they hold the project rules; follow them). Work in the order below. After EACH numbered step: commit, update HANDOFF.md, append to log.txt, and show real command output. Never invent numbers. Never print or commit keys. If budget or time runs short, skip down to step 8 (final packaging) and report what was skipped. Priority: a valid, honest submission beats a finished agent.
+
+CURRENT STATE (verify, don't trust): sample eval status 29/32, step precision 161/161, recall 161/193, fields 987/1351, sequences 12/32. The agent's sample CSV was byte-identical to the baseline. The 518-case agent run had not finished. Reports not final.
+
+1. SAFE STATE (5 min). Check whether the 518-case run is running or dead (processes, cache, log); do not start a duplicate. Confirm the repo has a valid committed output.csv (518 rows) from the BASELINE with no agent. Save a copy as output_baseline.csv (not in the zip) with its SHA-256. This is the fallback submission.
+
+2. LEAKAGE CHECK (must pass before anything else). Precision jumped from about 35% to 100%. Prove it's not leakage: (a) grep that no runtime code reads sample_output.csv or any label file; (b) run code/check_source_literals.py; (c) temporarily move sample_output.csv out of dataset/, run the full pipeline, confirm output.csv is byte-identical, then restore the file; (d) list what each linkage rule keys on. If anything leaks, STOP, revert the leaking change, report it, and use the last clean commit.
+
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_STEP_CAP=8, AGENT_CALL_BUDGET). Print: model calls made, findings proposed/verified/dropped, fallbacks, skipped-by-budget, tokens. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4. Raw traces (no keys) for 3 sample cases. Agent runs only on uncertain cases, with retries/backoff on 429/5xx, fallback to baseline, cached calls, audit_at-gated tools, findings re-verified by code, never writing final steps. Keep the agent in the final output ONLY if it improves status or tuple-matched steps and hurts nothing; otherwise submit baseline-only and say "no measurable gain" plainly. Give the full run at most the time you have left after steps 4-7; if it can't finish, use the cache so far, and report the partial coverage honestly. Two warm-cache runs must have identical SHA-256.
+
+4. FEATURE A: code/tools/submission_guard.py. One command; PASS/FAIL per item; exit 1 on any FAIL; it supplements and never replaces the pipeline validator.
+ - output.csv: exact header case_id,deletion_status,steps_json; 518 rows; sorted by case_id; valid JSON in steps_json; allowed operation/state pairs; consecutive step_no from 1; phase order FINDING, REMEDIATION, VERIFICATION and the within-phase sort; evidence_id rules (FINDING and COMPLETE-case VERIFICATION cite real evidence; REMEDIATION and INCOMPLETE-case VERIFICATION use ""); NOT_APPLICABLE implies []; no cited evidence captured after audit_at.
+ - code.zip: contains README.md, source, evaluation reports; excludes dataset/, virtualenvs, __pycache__, node_modules, .git, nested archives, caches, .env.
+ - Secret scan on code, reports, log.txt, zip.
+ - Hardcoding scan: load case IDs, evidence IDs, filenames from dataset/ at check time; fail if any appear in decision logic (state exemptions: comments, docstrings, tests, evaluation fixtures).
+ - log.txt exists and matches the AGENTS.md format.
+ - Tests: a deliberately bad CSV must FAIL. Note in code/README.md that it needs dataset/ and runs from the repo.
+
+5. FEATURE B: ablation report in code/evaluation/. Score against dataset/sample_output.csv: status, step (tuple-matched and positional), field, sequence accuracy. Ablation table: rules only; rules + linkage; rules + agent; rules + agent + validator; plus safeguards on/off where cheap (verifier on/off). Per variant: model call count, tokens, accuracy, agent gain over baseline, fallback rate. Write code/evaluation/decision_log.md: each change tried, measured result, kept or reverted, why. At least 3 custom test cases (not copies of samples): old-email request; legal hold or retention; replica drift; plus an adversarial case with instruction-like text inside a request or evidence file (must be ignored and still validate). Add cases for completion conditions (c) retained-record identifiers and (d) missing retained record if absent. Report honestly where the agent does not help.
+
+6. REPORTS. Write code/evaluation/evaluation_report.md (all metrics, ablation, custom cases, failures and fixes, limits: 32 samples are a weak estimate for 518 and half B is not a blind holdout, unverified items) and code/evaluation/usage_report.md (providers, models, call count, input/output tokens total and average, estimated cost per model and overall; state zero plainly if no calls). Use only real numbers from the final run.
+
+7. NOTES AND INTERVIEW SHEET. Update NOTES.md: tried / reverted / why; and a one-page interview cheat sheet: architecture and why code decides final steps; how audit_at is enforced (store gate and every tool); how replica drift is detected; how the agent's gain was measured (or that it showed none); what still fails; what is unverified; which AI tools were used (log shows several agents/models; be factual).
+
+8. FINAL PACKAGING. Regenerate output.csv (the baseline-or-agent choice from step 3); report row count, SHA-256, COMPLETE/INCOMPLETE/NOT_APPLICABLE counts. Run the tests. Rebuild the zip with package_submission.py (code/ contents + README + evaluation/ reports; no dataset/, .env, caches, keys). Run submission_guard.py and show its full output. List the zip at depth 2. Confirm log.txt is current and append-only.
+
+9. FINAL REPORT (end with this, and nothing else after it): (a) three files to upload: path of code.zip, path of output.csv, path of log.txt; (b) guard PASS/FAIL table; (c) final metrics; (d) agent: calls, gain, kept or dropped; (e) anything skipped or unverified; (f) the model name you ran as (or "unverified").
+
+Start with step 1 now. Do not ask me questions unless a step is impossible without my input.
+
+Agent Response Summary:
+Verified the existing run remains active (PID 13610); its log was 0 bytes and SQLite cache had 0 responses, so no duplicate was started. The committed baseline output validates at 518 rows with the exact header and matches the prior no-key baseline; copied it to `output_baseline.csv` with SHA-256 `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`. Updated HANDOFF.md to document the current branch output separately from the historical bd44d3f hash/counts.
+
+Actions:
+* Read HANDOFF.md; BRIEF.md was not found in the worktree or main checkout.
+* Ran process/cache/log and baseline checks; output validation passed, 133 COMPLETE / 376 INCOMPLETE / 9 NOT_APPLICABLE.
+* Copied output.csv to output_baseline.csv; 500724 bytes, SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

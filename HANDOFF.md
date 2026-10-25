@@ -21,6 +21,23 @@ operational resume point (kept out of code.zip; committed to git).
   SHA-256 `70c6031d7a45685d43202c6808a8902e51c17e433ae18f5f1e5800f5e4130398`.
   Two consecutive warm-cache runs byte-identical (same hash).
 
+## M5 final-task safe state (2026-10-25)
+
+- `BRIEF.md` is absent from this worktree and the main checkout; the user's
+  final master task is the active brief.
+- Current branch `feat/investigator-agent` at `39d852f` has a committed,
+  validated 518-row baseline in root `output.csv`: COMPLETE=133,
+  INCOMPLETE=376, NOT_APPLICABLE=9; SHA-256
+  `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`.
+  It matches the previous no-key baseline run. This is distinct from the
+  historical `bd44d3f` output above; do not treat the old hash/counts as the
+  current branch output.
+- `output_baseline.csv` is an exact, uncommitted fallback copy of that current
+  baseline (500,724 bytes, same SHA-256); exclude it from `code.zip`.
+- The existing `code/run.py` process (PID 13610 when checked) was still alive;
+  do not start a duplicate. Its run log was 0 bytes and cache had 0 responses
+  at the last check. Recheck before deciding whether its results are usable.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)
