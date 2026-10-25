@@ -183,9 +183,22 @@ operational resume point (kept out of code.zip; committed to git).
 
 ## In progress
 
-- M4d Step 2: linkage analysis. Classify how each missing step's resource
-  connects to the subject using only evidence at/before audit_at; write the
-  count table in NOTES.md; no case IDs in code.
+- Final-task steps 3–4 (agent diagnostic, guard strict/opt-out), then
+  regenerate, reports, packaging.
+
+## Final-task step 2 verdict (2026-10-25)
+
+- 12 zero-match `INCOMPLETE,[]` cases audited through the temporal gate:
+  every resolved identifier (current + historical email, email hash, phone,
+  user_id, customer reference) returned 0 pre-cutoff record hits and 0
+  surviving records at ANY capture time, and 0 data-flow log hits for every
+  identity value at any time.
+- case_53 `support_1034` exists only as a 2026-09-17 capture (after its
+  2026-05-25 cutoff, non-citable). case_61 `object_19` has no stored record
+  at any time. All 12 are honestly UNRESOLVED: no evidence may be cited.
+- Stalled-flow ownership is explicit in the logs: every `data_flow_*` line
+  with attribution names its owner via `correlation_key` (e.g.
+  `data_flow_8024` -> `user_461` = Ana Nowak), none matching the 12 subjects.
 
 ## Exact next step
 

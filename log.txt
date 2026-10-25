@@ -1067,3 +1067,43 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:16:45+05:30] Final-task Step 1 — intent negation fix
+
+User Prompt (verbatim, secrets redacted):
+1. FINISH THE INTENT FIX (case_539 class). Land the negation fix ... keep failing-test-first; add positive regression tests; re-check across all 518 that only the intended case flips.
+
+Agent Response Summary:
+Failing test first proved the classifier counted "information request, not a request to erase it" as deletion; implemented three general negation patterns in intent.py. Positive erasure wording still authorizes. Full-set verification: exactly 1 flip (case_539 True->False), 0 flips on the 32 samples.
+
+Actions:
+* Edited code/tests/test_baseline.py (RED) then code/pramaantrace/intent.py (GREEN).
+* pytest IntentTests: negation test failed pre-fix; test_baseline.py 8 passed + 32 subtests after.
+* Cross-518 diff of old vs new pattern sets: full flips=1 (case_539), sample flips=0.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T14:17:54+05:30] Final-task Step 2 — zero-match case audit
+
+User Prompt (verbatim, secrets redacted):
+2. THE OTHER 12 ZERO-MATCH CASES. Per-case temporal-gate audit ... fix resolver if plausible miss; else UNRESOLVED in reports. Never invent evidence IDs.
+
+Agent Response Summary:
+All 12 cases resolve to exactly one identity but return 0 pre-cutoff (and even 0 any-time) record hits and 0 data-flow log hits for every identifier. case_53's linked support_1034 exists only post-cutoff; case_61's object_19 has no stored evidence. Every attributed data_flow_* line names an unrelated owner via correlation_key. Verdict: 12 UNRESOLVED; case_539 was the separate intent bug fixed in step 1.
+
+Actions:
+* Ran identity/identifier hit audit per case (output shown in conversation).
+* Updated HANDOFF.md with the per-case verdict and ownership proof; appended log.
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
