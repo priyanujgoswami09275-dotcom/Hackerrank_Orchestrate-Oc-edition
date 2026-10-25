@@ -1023,3 +1023,23 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:42:04+05:30] Step 7 — notes and interview sheet
+
+User Prompt (verbatim, secrets redacted):
+7. NOTES AND INTERVIEW SHEET. Update NOTES.md: tried / reverted / why; and a one-page interview cheat sheet: architecture and why code decides final steps; how audit_at is enforced (store gate and every tool); how replica drift is detected; how the agent's gain was measured (or that it showed none); what still fails; what is unverified; which AI tools were used (log shows several agents/models; be factual).
+
+Agent Response Summary:
+Appended M5 trials, measured results, keep/drop decisions, and unverified items to NOTES.md without altering historical notes. Added a concise INTERVIEW.md describing the architecture, deterministic authority, audit_at enforcement, replica drift, no measurable agent gain, remaining failures, and cautiously attributed AI tools/models from the append-only log.
+
+Actions:
+* Updated `NOTES.md`; added `INTERVIEW.md`.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

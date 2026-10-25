@@ -376,3 +376,35 @@ still unverified. The full output now has 9 NOT_APPLICABLE rows rather than
   files and both evaluation reports are present at the archive root layout
   prescribed by packaging the contents of `code/`; dataset, cache, nested
   archive, and secret-like-value checks passed.
+
+## M5 final submission decisions (2026-10-25)
+
+- **Tried: rules only vs. rules + linkage.** On the same 32 public cases,
+  rules-only scored 27/32 statuses, 113/193 tuple recall, 68/193 positional
+  exact steps, 638/1,351 fields, and 2/32 sequences. Linkage scored 29/32,
+  161/193, 122/193, 987/1,351, and 12/32. Kept the enriched linkage baseline;
+  the 32 cases are weak evidence for 518.
+- **Tried: sample agent with deterministic verifier.** It produced a
+  byte-identical CSV: 17 investigations completed, 15 fell back, 36 candidates
+  accepted, 0 rejected. It used 97 network calls, 28 retries, 13 failed
+  requests, 172,870 tokens, and reported $0.00. Dropped agent-derived
+  predictions because there was no accuracy gain.
+- **Tried: 518-case agent run.** OpenRouter
+  `nvidia/nemotron-3.5-super-vl:free` made 1,527 network attempts (1,018
+  retries); 509 requests failed, 509 cases fell back, and no response was
+  cached. Token usage and reported cost were zero. The output SHA-256 remained
+  `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`; agent
+  output dropped. No second warm-cache run or verifier-off test was made.
+- **Tried: instruction-like request fixture.** Added a synthetic request asking
+  the system to claim `COMPLETE` and omit a known remaining record. It still
+  reports the evidence-backed record and passes `validate_rows`. Existing
+  synthetic fixtures also cover old email, legal hold, replica drift, retained
+  tombstone identifiers, and a missing required retained record.
+- **Kept: submission guard.** It checks the CSV contract and temporal evidence,
+  calls the existing validator, scans archive exclusions/secrets/dataset
+  literals, and validates log structure. It passes every current artifact check
+  except the log: 15 pre-existing format issues include `model=unknown` and
+  unverified metadata. The log is append-only, so prior lines were not edited.
+- **Unverified:** no successful full-run model response, raw traces for three
+  sample cases, per-case budget skips/`AGENT_CALL_BUDGET`, or second warm-cache
+  hash. The full 518-case set has no participant-visible accuracy labels.

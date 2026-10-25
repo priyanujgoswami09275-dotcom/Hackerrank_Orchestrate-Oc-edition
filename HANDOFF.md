@@ -134,6 +134,16 @@ operational resume point (kept out of code.zip; committed to git).
   usage totals. Source-literal scan passed after report updates. Full unit suite
   most recently passed 98 tests and 32 subtests.
 
+### Step 7 notes and interview sheet
+
+- Appended current trials, measured results, kept/dropped decisions, and
+  unverified items to `NOTES.md` without removing its historical development
+  notes.
+- Added root `INTERVIEW.md` covering architecture, why deterministic code
+  decides final steps, `audit_at` gates, replica drift, measured agent gain
+  (none), remaining failures, unverified items, and cautiously attributed AI
+  tool/model records from `log.txt`.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)
