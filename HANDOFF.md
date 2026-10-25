@@ -97,6 +97,27 @@ operational resume point (kept out of code.zip; committed to git).
 - The existing `code.zip` has not yet been rebuilt with the guard; Step 8 must
   regenerate it and run the guard again.
 
+### Step 5 Feature B — ablation and custom cases
+
+- Added `code/evaluation/ablation_report.md` and `decision_log.md`. Fresh
+  sample runs measured rules-only at 27/32 status, 113/193 tuple recall,
+  68/193 positional exact steps, 638/1,351 fields, 2/32 sequences; rules plus
+  linkage measured 29/32, 161/193, 122/193, 987/1,351, 12/32 respectively.
+- The prior sample agent CSV was byte-identical to linkage baseline (17
+  completed investigations, 15 fallbacks, 36 candidates accepted, 0 rejected;
+  call/token totals not recorded). The full run made 1,527 network attempts,
+  1,018 retries, 509 failed requests, and fell back for all 509 authorized
+  cases; 0 tokens/cache responses and $0 reported. Output hash matched the
+  baseline. The agent output is dropped; no verifier-off run was attempted.
+- Added an instruction-like request test that confirms evidence-driven
+  INCOMPLETE output still passes `validate_rows`. Historical-email, legal-hold,
+  replica-drift, tombstone-identifier, and missing-retention tests already
+  cover the other requested custom conditions. `python3 -m pytest
+  code/tests -q`: 98 passed, 32 subtests passed.
+- Agent sample call totals, three raw traces, budget skips, verifier-off
+  behavior, and a second warm-cache hash remain unverified; the full request
+  set has no public gold labels for accuracy scoring.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)

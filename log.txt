@@ -978,3 +978,26 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:37:03+05:30] Step 5 — ablation and custom cases
+
+User Prompt (verbatim, secrets redacted):
+5. FEATURE B: ablation report in code/evaluation/. Score against dataset/sample_output.csv: status, step (tuple-matched and positional), field, sequence accuracy. Ablation table: rules only; rules + linkage; rules + agent; rules + agent + validator; plus safeguards on/off where cheap (verifier on/off). Per variant: model call count, tokens, accuracy, agent gain over baseline, fallback rate. Write code/evaluation/decision_log.md: each change tried, measured result, kept or reverted, why. At least 3 custom test cases (not copies of samples): old-email request; legal hold or retention; replica drift; plus an adversarial case with instruction-like text inside a request or evidence file (must be ignored and still validate). Add cases for completion conditions (c) retained-record identifiers and (d) missing retained record if absent. Report honestly where the agent does not help.
+
+Agent Response Summary:
+Measured the rules-only and rules-plus-linkage variants on the public 32-case sample, added the ablation and decision-log reports, and added an adversarial instruction-like request test that still validates the evidence-driven result. Existing synthetic tests cover historical email, retention, replica drift, tombstone identifiers, and missing retained records. Agent sample output was byte-identical to baseline; the completed full run also had no gain and 100% fallback.
+
+Actions:
+* Ran sample-only deterministic variants with `--disable-agent`; rules-only: 27/32 statuses, 113/193 tuple recall, 68/193 positional exact steps, 638/1351 fields, 2/32 sequences; rules+linkage: 29/32, 161/193, 122/193, 987/1351, 12/32.
+* Added `code/evaluation/ablation_report.md` and `code/evaluation/decision_log.md`.
+* Added adversarial-request coverage to `code/tests/test_custom_cases.py`; targeted custom/completion tests: 11 passed.
+* Ran `python3 -m pytest code/tests -q` → 98 passed, 32 subtests passed.
+* Updated HANDOFF.md and appended this record.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
