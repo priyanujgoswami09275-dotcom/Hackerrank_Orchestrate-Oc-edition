@@ -38,6 +38,32 @@ operational resume point (kept out of code.zip; committed to git).
   do not start a duplicate. Its run log was 0 bytes and cache had 0 responses
   at the last check. Recheck before deciding whether its results are usable.
 
+### Step 2 leakage checks
+
+- No runtime source reads `sample_output.csv` or a label file. Its references
+  are in evaluation/test code; `loader.py` also loads public
+  `sample_deletion_requests.csv`, which `run.py`, `run_baseline`, and the agent
+  pipeline do not consume. `python3 code/check_source_literals.py` passed.
+- With `dataset/sample_output.csv` temporarily absent, the full no-agent
+  pipeline (`python3 code/run.py --disable-agent --output <isolated-temp-file>`)
+  validated all 518 cases and produced SHA-256
+  `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`, byte
+  identical to the committed baseline. The sample file was restored unchanged;
+  root `output.csv` was unchanged.
+- Linkage keys: (1) `IdentityResolver` joins the request email or its SHA-256
+  to identities visible at `audit_at`, retaining historical email/hash/phone/
+  customer-reference values and stable `user_id`; (2) record identity matches
+  use user ID, email, email hash, phone, and customer reference; (3) enrichment
+  sniffs identifier-shaped values only under `lookup_key`, `query`,
+  `subject_key`, `subject_ref`, `search_term`, and `correlation_key`; (4)
+  structured cross-references accept resource-shaped attribute values on
+  already subject-linked records, excluding record/capture/evidence/request
+  IDs and user/customer references; (5) activity linkage requires a whole-token
+  identity value in event details and uses that event's resource ID, at/before
+  the cutoff; (6) wave-derived accounts require exactly one account DELETE
+  within 420 seconds of a linked resource's in-window deletion claim and no
+  surviving stored record. All evidence/resource joins are `audit_at` gated.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)
