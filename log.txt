@@ -1191,3 +1191,23 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:31:58+05:30] Final-task Step 7 — packaging and secret scans
+
+User Prompt (verbatim, secrets redacted):
+7. PACKAGE AND GITHUB-SAFETY. Rebuild zip; list at depth 2; confirm exclusions. Secret scan working tree, zip, log.txt, git history (redacted); stop if a key ever appeared in a commit. Confirm .gitignore coverage; git status, git remote -v; NO push; commit locally. Confirm log.txt current and append-only.
+
+Agent Response Summary:
+Rebuilt code.zip (53 files; check_source_literals scope fix was first required because the reports must name UNRESOLVED case IDs: scan now exempts evaluation/*.md documents and tests/ fixtures, and NEWLY scans prompt .txt files; a real dataset literal in code or prompts still fails, verified by new tests; 114 tests pass). Zip listing verified at depth 2 with no dataset/, .env, caches, __pycache__, .git, nested archives. Detailed scan: the real key (73 chars) appears in NO working-tree file, NOT in log.txt, NOT in code.zip, and NOT anywhere in git history (git log -p --all). Public provider config (base URL, model name) appears in docs and is not a secret; one Bearer-pattern hit is a pytest fixture string. .gitignore now covers .env, caches incl. sqlite, output_baseline.csv, .DS_Store (plus .agents/, skills-lock.json untracked noise). No push performed; remotes listed only. log.txt has 52 entries and remains append-only; guard log-format check passes with 14 documented legacy exemptions.
+
+Actions:
+* Edited code/check_source_literals.py + tests (RED->GREEN), rebuilt code.zip, updated .gitignore.
+* Ran guard on rebuilt zip: secret scan PASS over 112 files; exclusions PASS.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
