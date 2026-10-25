@@ -31,10 +31,14 @@ passed `validate_rows`.
 The full run reported 509 attempted authorized cases, 0 completed, 509
 fallbacks, 1,018 retries, 509 failed requests, 0 cache hits, and 0 accepted or
 rejected candidates. The requested model was
-`nvidia/nemotron-3.5-super-vl:free` through OpenRouter. The output hash remained
-`35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`, exactly
-matching `output_baseline.csv`. The agent did not improve the sample or the
-full-run output; the submission prediction file remains baseline-only.
+`nvidia/nemotron-3.5-super-vl:free` through OpenRouter; a final-session single
+diagnostic call confirmed the free-tier daily rate limit (HTTP 429) as the
+root cause of all its failures. That run's hash matched the preserved
+baseline; the submitted file now has SHA-256
+`6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd` because of
+the later intent correction (one full-set flip), not because of any agent
+outcome. The agent did not improve the sample or the full-run output; the
+submission prediction file remains baseline-only.
 
 ## Safeguard ablation
 
@@ -47,9 +51,11 @@ full-run output; the submission prediction file remains baseline-only.
 
 The prior sample run did not preserve raw per-case traces for three sample
 cases. Its aggregate usage is available above. The full-run cache contains 0
-responses, so no raw successful full-run traces exist to report. A second
-warm-cache full-run hash comparison was not performed; the only measured
-full-run hash equals the preserved baseline.
+responses, so no raw successful full-run traces exist to report, and no second
+warm-cache full-run hash comparison was possible. The final submitted hash
+(computed from two byte-identical consecutive deterministic runs, plus a
+sample-label-removal leakage re-check) is
+`6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd`.
 
 ## Custom cases
 

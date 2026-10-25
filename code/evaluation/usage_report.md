@@ -1,31 +1,47 @@
 # PramaanTrace model and usage report
 
-## Full-dataset run that produced the candidate output
+## Final full-dataset run that produced the submitted output
 
-The 518-case candidate run used the optional investigator through OpenRouter.
-Every model request failed and every authorized case fell back to the
-deterministic baseline. The resulting CSV validated and is byte-identical to
-the separately preserved baseline; no agent-derived steps were selected. A
-final-session follow-up diagnostic confirmed the root cause: OpenRouter's
-free-models-per-day rate limit (HTTP 429, `X-RateLimit-Remaining: 0`).
+The run that produced the submitted `output.csv` ran the deterministic
+pipeline with the investigator disabled: no `LLM_API_KEY` was configured in
+its environment, so it made **0 model calls**, consumed **0 tokens**, and had
+**$0.00** model cost. The intent-negation correction from the final session is
+included in this run.
+
+| Provider / model | Network attempts | Retries | Failed requests | Input tokens | Output tokens | Total tokens | Reported total cost |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| none (investigator disabled; deterministic pipeline only) | 0 | 0 | 0 | 0 | 0 | 0 | $0.00000000 |
+| **Overall** | **0** | **0** | **0** | **0** | **0** | **0** | **$0.00000000** |
+
+- Authorized cases attempted by the agent: 0 of 509; 0 investigations; 0
+  fallbacks needed; the agent contributed no rows.
+- Two consecutive runs produced byte-identical output (SHA-256
+  `6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd`), and a
+  leakage re-check with `dataset/sample_output.csv` removed reproduced the
+  same bytes.
+- Average tokens per request and per network attempt: 0.
+
+## Prior 518-case agent run (historical; superseded)
+
+An earlier 518-case run with the investigator enabled attempted 509
+deletion-authorized cases and made 0 successful model calls: every attempt
+failed and all 509 cases fell back to the deterministic baseline. A
+final-session single connectivity diagnostic identified the root cause:
+OpenRouter's free-models-per-day rate limit (HTTP 429,
+`X-RateLimit-Remaining: 0`); the key was never printed.
 
 | Provider / model | Network attempts | Retries | Failed requests | Input tokens | Output tokens | Total tokens | Reported total cost |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | OpenRouter / `nvidia/nemotron-3.5-super-vl:free` | 1,527 | 1,018 | 509 | 0 | 0 | 0 | $0.00000000 |
-| **Overall** | **1,527** | **1,018** | **509** | **0** | **0** | **0** | **$0.00000000** |
 
 - Authorized cases attempted: 509 of 518; 0 investigations completed; 509
   baseline fallbacks (100%); 0 accepted candidates and 0 rejected candidates.
-- Cache hits/responses: 0 / 0.
-- Average per network attempt: 0 input tokens, 0 output tokens, 0 total tokens,
-  and $0.00000000 reported cost.
-- Average per audited request (518): 0 input tokens, 0 output tokens, 0 total
-  tokens, and $0.00000000 reported cost.
+- Cache hits/responses: 0 / 0 (nothing to reuse for a warm-cache run).
+- Its output was byte-identical to the then-current baseline and had no agent
+  contribution; it was superseded by the final run above after the intent
+  correction.
 - Cost is the provider-reported value in the run summary; failed requests had
   no reported token usage. Retries are included in the 1,527 network attempts.
-- Candidate output SHA-256:
-  `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`.
-  It exactly matches `output_baseline.csv`.
 
 ## Prior public-sample agent run (reported separately)
 
@@ -57,6 +73,9 @@ investigator made no successful calls at any point.
 - Raw traces for three sample cases were never captured (the provider
   returned no successful completion in any run).
 - `AGENT_CALL_BUDGET` skips were not observable because no call succeeded.
-- The coding-assistant models/tools recorded in `log.txt` are not counted as
-  prediction-pipeline usage here.
+- Several AI coding tools and models worked on this repository across sessions
+  (the append-only `log.txt` records harness/model lines, including early
+  entries with `model=unknown` placeholders from before the convention was
+  fixed). Those coding-assistant calls are development tooling, not
+  prediction-pipeline usage, and are not counted in the totals above.
 - No credentials, API keys, or sensitive configuration values are included.

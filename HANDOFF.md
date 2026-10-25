@@ -183,8 +183,36 @@ operational resume point (kept out of code.zip; committed to git).
 
 ## In progress
 
-- Final-task steps 3–4 (agent diagnostic, guard strict/opt-out), then
-  regenerate, reports, packaging.
+- Final-task step 7 (packaging, secret scan incl. git history, no push) and
+  step 8 (final report). Steps 1–6 are complete; see the verdicts below.
+
+## Final-task progress ledger (2026-10-25)
+
+- Step 1 intent fix: committed `197599b` — 3 general negation patterns in
+  `code/pramaantrace/intent.py`; RED test first; positive erasure regressions
+  green; across all 518 texts exactly 1 flip (case_539 True→False), 0 sample
+  flips.
+- Step 2: 12 zero-match cases audited (below) → all UNRESOLVED; case_539 was
+  the pipeline's intent bug fixed in step 1. Committed `3a37574`.
+- Step 3: single OpenRouter diagnostic returned HTTP 429
+  `free-models-per-day` (`X-RateLimit-Remaining: 0`, key redacted); agent work
+  stopped; reports state root cause + "no measurable gain". Committed
+  `09160ae`.
+- Step 4: guard strict default with `PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE=1`
+  opt-out (WARN/UNRESOLVED, never PASS; default OFF) and documented
+  per-entry legacy-log exemptions (`code/tools/log_exemptions.txt`, 14
+  entries). 111 tests pass; guard strict = FAIL only on the unresolved
+  INCOMPLETE plans; opt-out run exits 0 with the WARN line. Committed
+  `159760d`.
+- Step 5: two consecutive runs identical SHA-256
+  `6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd`;
+  518 rows; COMPLETE=133, INCOMPLETE=375, NOT_APPLICABLE=10 (case_539
+  NOT_APPLICABLE, []); sample-label-removal leakage run byte-identical;
+  sample eval 29/32 status, 161/161 precision, 161/193 recall, 987/1,351
+  fields, 12/32 sequences; sort contract PASS. Committed `7fe08e4`.
+- Step 6: evaluation/usage/ablation/decision reports, NOTES.md and
+  INTERVIEW.md refreshed with the final numbers, the 12 UNRESOLVED case IDs,
+  case_539 outcome, agent root cause, and attribution wording.
 
 ## Final-task step 2 verdict (2026-10-25)
 
@@ -202,14 +230,12 @@ operational resume point (kept out of code.zip; committed to git).
 
 ## Exact next step
 
-1. Write/extend a gated diagnostic (evaluation-only, may read sample labels) to
-   classify the 80 missing tuples into link types.
-2. M4d Step 3: implement general subject linkage one type at a time, ordered by
-   how many missing steps each explains; report A/B/all after each; revert what
-   does not help; log in NOTES.md.
-3. Step 4: evidence-ID selection rule; Step 5: intent/language coverage audit.
-4. M5 agent only if budget remains; then section I deliverables
-   (reports, NOTES.md interview sheet, code.zip rebuild + secret scans).
+1. Step 7: rebuild `code.zip` with `code/package_submission.py`; list at depth
+   2; secret-scan working tree, zip, `log.txt`, and git history (redacted);
+   verify `.gitignore` covers `.env`, caches, `output_baseline.csv`,
+   `.DS_Store`; show `git status`/`git remote -v`; NO push of any kind.
+2. Step 8: final report (paths, guard table, metrics, agent numbers,
+   UNRESOLVED cases, secret scan, model name, skipped items). Nothing after.
 
 ## Key commands
 

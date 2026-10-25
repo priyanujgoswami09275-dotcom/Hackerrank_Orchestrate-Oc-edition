@@ -408,3 +408,42 @@ still unverified. The full output now has 9 NOT_APPLICABLE rows rather than
 - **Unverified:** no successful full-run model response, raw traces for three
   sample cases, per-case budget skips/`AGENT_CALL_BUDGET`, or second warm-cache
   hash. The full 518-case set has no participant-visible accuracy labels.
+
+## Final session (2026-10-25): intent fix, unresolved audit, agent stop, guard
+
+- **Tried and kept: intent negation correction.** Red-first test proved the
+  classifier authorized deletion for "This is an information request, not a
+  request to erase it." Added three general negation patterns (no case IDs in
+  code). Positive regressions confirm genuine erase/delete wording still
+  authorizes, including "I don't want you keeping my data, please erase it."
+  Cross-check over all 518 request texts: exactly 1 flip (truth→non-deletion),
+  0 flips among the 32 public samples.
+- **Audited: the 12 remaining zero-match cases are UNRESOLVED.** Per case,
+  every resolved identifier returned 0 record hits at/before `audit_at` and,
+  diagnostic-only, 0 at any capture time. case_53's `support_1034` exists only
+  in a 2026-09-17 capture (after its 2026-05-25 cutoff, never citable);
+  case_61's `object_19` has no stored record at any time. Every attributed
+  `data_flow_*` log line carries an explicit `correlation_key` naming an
+  unrelated owner (e.g. `data_flow_8024` → `user_461`), proving none belongs to
+  the 12 subjects. Listed as UNRESOLVED in the reports; no evidence invented.
+- **Agent: permanently stopped after one diagnostic.** A single OpenRouter
+  call returned HTTP 429 `free-models-per-day`, `X-RateLimit-Remaining: 0`
+  (key redacted, never printed). This confirms the provider daily limit as the
+  root cause of the earlier 509/509 fallback run; the model ID and headers
+  were accepted. Per instruction no further agent work was done and the
+  518-case agent was not re-run. The submitted output therefore has 0 model
+  calls in its producing run and **no measurable agent gain is claimed**.
+- **Kept: guard hardening.** `submission_guard.py` is strict by default.
+  `PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE=1` (default OFF) prints the
+  affected case IDs as `WARN ... UNRESOLVED` (never PASS) and excludes that
+  line only from exit-code failure. Legacy log entries are exempted through a
+  documented, entry-numbered `code/tools/log_exemptions.txt` (14 entries with
+  reasons); the guard reports how many exemptions it applied and all other
+  entries must fully comply. Archive-path handling normalizes backslashes.
+  Tests: 111 passed.
+- **Final regeneration.** Two consecutive full runs produced identical
+  SHA-256 `6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd`;
+  counts COMPLETE=133, INCOMPLETE=375, NOT_APPLICABLE=10. Leakage re-check
+  with `sample_output.csv` removed reproduced the identical bytes. Sample
+  metrics unchanged: 29/32 status, 161/161 precision, 161/193 recall,
+  987/1,351 fields, 12/32 sequences; sort contract PASS.

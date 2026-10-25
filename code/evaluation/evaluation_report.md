@@ -180,6 +180,28 @@ pre-cutoff capture, and zero in-window activity links; the expected citations
 are captures outside those audits' cutoffs. The planner keeps its honest
 INCOMPLETE fallback rather than citing evidence its own temporal gate rejects.
 
+On the full 518-request set the same audit (per-case, through the temporal
+gate) leaves 12 deletion-authorized cases with empty step lists, reported as
+UNRESOLVED: `case_264`, `case_265`, `case_267`, `case_271`, `case_272`,
+`case_416`, `case_417`, `case_517`, `case_519`, `case_521`, `case_53`,
+`case_61`. For every one of them: all resolved identifiers (current and
+historical email, email hash, phone, stable user reference, customer
+reference) return 0 record hits at or before `audit_at` — and, checked
+diagnostically only, 0 hits at any capture time; there are no in-window
+activity links; and no evidence file contains a citable link. The two
+linked-resource leads were checked and ruled out: `case_53`'s linked
+`support_1034` exists only in a capture from 2026-09-17, after its
+2026-05-25 cutoff (never citable), and `case_61`'s linked `object_19` has no
+stored record at any time. Stalled `data_flow_*` log lines name unrelated
+owners through an explicit `correlation_key` field; none match these 12
+subjects, so no `REPORT_ACTIVE_DATA_FLOW` finding is justified. A 13th
+zero-match case, `case_539`, was instead an intent-classifier bug: its text
+is an information (access) request — "This is an information request, not a
+request to erase it." — which the classifier counted as deletion. It was
+fixed with general negation patterns (see the intent discussion above):
+exactly one full-set flip, zero sample flips, and `case_539` is now
+`NOT_APPLICABLE, []`.
+
 The earlier support-message customer-reference interpretations, analytics
 attribution issues, and backup restore-field mismatches were resolved by the
 support-ownership rule, trace-pairing, and readback canonicalization later
@@ -246,30 +268,40 @@ deletion, and 8 clear access/correction/marketing/keep-active requests. The 10
 shortest deletion-classified requests included one explicit “do not close”
 login request and nine explicit Japanese deletion requests. The intent rules
 now recognize Portuguese `exclusão`/`excluir`, Portuguese negation, and
-negated account closure. This correction does not change public-sample metrics;
-N/A accuracy remains unverified against labels.
+negated account closure. A final intent correction added general negation
+patterns for explicit non-deletion phrasing: the text "This is an information
+request, not a request to erase it." was misclassified as deletion. After the
+fix, linking that full-set request (case_539) to an access request is confirmed
+by its own wording, and the classifier change was verified across all 518
+request texts to flip exactly that one case from deletion to non-deletion
+(0 flips among the 32 public samples). Full-set NOT_APPLICABLE count is 10 of
+which 9 predate this correction; N/A accuracy remains unverified against
+labels.
 
 ## Full-dataset output
 
 The final 518-case run used the same deterministic pipeline with the
-enrichment pass enabled (`PRAMAANTRACE_ENRICH=1`), and it validated all 518
-requests:
+enrichment pass enabled and the corrected intent classifier; it validated all
+518 requests:
 
 | Status | Cases |
 |---|---:|
 | COMPLETE | 133 |
-| INCOMPLETE | 376 |
-| NOT_APPLICABLE | 9 |
+| INCOMPLETE | 375 |
+| NOT_APPLICABLE | 10 |
 
+The one-case change from the previous committed baseline is `case_539`
+(INCOMPLETE → NOT_APPLICABLE) from the intent correction described above.
 The root `output.csv` contains one row per request and passed the output
 validator. Rows are sorted lexicographically by `case_id`; the evaluator's
 sample IDs happen to have consistent widths, while full-dataset IDs do not.
 Its SHA-256 is
-`35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`.
-A second full run in the same session wrote a byte-identical file, and an
-independent 518-case trial run to a different path also matched byte for
-byte. The submission CSV is standalone and does not require the local OCR
-cache.
+`6447f3edd32d631689402866973b9ef05aee39a0d2438682dd202f15b99bd7bd`.
+Two consecutive full runs in the same session wrote byte-identical files, and
+a leakage re-check reproduced the identical SHA-256 with
+`dataset/sample_output.csv` removed from the dataset directory (then
+restored), confirming no dependence on the sample labels. The submission CSV
+is standalone and does not require the local OCR cache.
 
 ## Improvements, limitations, and next work
 
@@ -301,10 +333,19 @@ cache.
   the correction and earlier interim revert are explained in the failure
   analysis section above.
 - The full agent run had 100% fallback, zero tokens, and no candidate output
-  change. A second warm-cache run, per-case budget skips, and three raw sample
-  traces were not verified or retained. The 32-case sample is not a blind
-  holdout because B cases were inspected during earlier tuning.
-- The submission guard passes CSV, pipeline, archive, secret, and hardcoding
-  checks but flags 15 pre-existing log-format issues, including unknown or
-  unverified model metadata. `log.txt` remains append-only; historic entries
-  were not rewritten.
+  change; a final-session single connectivity diagnostic confirmed the
+  provider's free-tier daily rate limit (HTTP 429) as the root cause, so the
+  investigator made 0 successful calls at any point and no gain is claimed. A
+  second warm-cache run, per-case budget skips, and three raw sample traces
+  were not verified or retained (no responses existed to cache). The 32-case
+  sample is not a blind holdout because B cases were inspected during earlier
+  tuning.
+- The submission guard is strict by default and now passes the CSV, pipeline,
+  archive, secret, and hardcoding checks; the log-format check applies
+  documented legacy exemptions (14 append-only entries from earlier sessions,
+  itemized with reasons in `code/tools/log_exemptions.txt`) and passes. The
+  remaining strict FAIL is the honest one: 12 full-set INCOMPLETE cases have
+  no plan because no citable evidence exists; with the explicit
+  `PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE=1` opt-out (default OFF) the guard
+  prints those case IDs as `WARN ... UNRESOLVED` and exits 0. Neither opt-out
+  turns a failing condition into PASS.

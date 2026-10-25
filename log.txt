@@ -1170,3 +1170,24 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:29:13+05:30] Final-task Step 6 — reports and notes refresh
+
+User Prompt (verbatim, secrets redacted):
+6. REPORTS AND NOTES. Update evaluation_report.md (final metrics, ablation, custom cases, 13 zero-match outcome, limits), usage_report.md, decision_log.md, NOTES.md with interview cheat sheet, HANDOFF.md. State several AI tools/models worked on the repo and the final agent made no successful calls.
+
+Agent Response Summary:
+evaluation_report.md now records the corrected full-set counts (133/375/10), SHA-256 6447f3ed..., the case_539 intent fix with its one-flip verification, the 12 UNRESOLVED case IDs with per-case temporal-gate justification, and the honest guard/agent position. usage_report.md separates the final 0-call producing run from the historical 1,527-attempt run and the sample/diagnostic runs, and states that several AI coding tools/models worked on the repo via log.txt while the prediction agent made no successful calls. decision_log.md gained rows for the intent fix, zero-match audit verdict, guard opt-out/exemptions, and final regeneration. NOTES.md gained the final-session tried/kept/reverted section; INTERVIEW.md cheat sheet refreshed (remaining-failure list, agent stop via 429, legacy exemptions, attribution including final session glm-5.3-flash-free).
+
+Actions:
+* Edited code/evaluation/evaluation_report.md, usage_report.md, ablation_report.md, decision_log.md.
+* Edited NOTES.md and INTERVIEW.md; updated HANDOFF.md ledger.
+* Appended this log entry.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
