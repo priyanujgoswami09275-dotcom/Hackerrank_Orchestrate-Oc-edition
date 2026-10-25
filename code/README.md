@@ -134,6 +134,22 @@ participant-facing `dataset/` directory and supplements the pipeline validator):
 python3 code/tools/submission_guard.py
 ```
 
+The guard is strict by default and exits 1 on any FAIL. Two explicit, narrow
+opt-outs exist; neither turns a failing condition into PASS:
+
+- `PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE=1`: cases whose `INCOMPLETE` row has
+  no findings/remediation/verification because no participant-visible evidence
+  exists at or before `audit_at` are printed as `WARN ... UNRESOLVED` lines
+  listing the affected case IDs. These cases stay unresolved and must be listed
+  in the evaluation reports; the exit code treats the admitted line as a
+  warning, not a pass. Without the variable the same check is a hard FAIL.
+- `code/tools/log_exemptions.txt`: `log.txt` is append-only, so entries written
+  by earlier sessions before the model-verification convention cannot be edited
+  or removed. That file lists — one per line with a reason — exactly which
+  historical entry numbers of `log.txt` are waived from the AGENTS.md format
+  check. The guard states how many documented exemptions it applied; every
+  non-listed entry must fully comply, so new violations cannot be masked.
+
 The source scan reads participant-facing request and evidence manifests and
 fails if code embeds a dataset case ID, evidence ID, or evidence filename.
 

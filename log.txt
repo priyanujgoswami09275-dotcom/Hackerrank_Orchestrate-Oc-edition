@@ -1127,3 +1127,25 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:23:53+05:30] Final-task Step 4 — guard opt-out + legacy-log exemption
+
+User Prompt (verbatim, secrets redacted):
+4. GUARD. Finish submission_guard.py fixes (archive-path normalization). Strict default; explicit env opt-out default OFF printing UNRESOLVED/WARN never PASS; documented narrow exemption for legacy log entries; run guard strict and show full output.
+
+Agent Response Summary:
+Added PRAMAANTRACE_ADMIT_UNRESOLVED_INCOMPLETE (default OFF): strict mode keeps a hard FAIL on INCOMPLETE rows without a full plan; with the variable set the guard prints WARN + "UNRESOLVED" lines listing the affected case IDs and the exit code ignores that line only. log.txt is append-only, so the 14 legacy nonconforming entries (model=unknown/unverified placeholders and correction notes without context blocks, one also with a non-ISO timestamp) are waived through a documented, entry-numbered code/tools/log_exemptions.txt; the guard reports how many exemptions it applied and every non-listed entry must comply. Full suite: 111 tests passed. Strict run: FAIL INCOMPLETE plans include all phases, exit 1; log format PASS (14 documented legacy exemptions), everything else PASS. Opt-out run: same lines with WARN ..., exit 0 (17 PASS + 1 WARN).
+
+Actions:
+* Edited code/tools/submission_guard.py (warning state, _format_result/_exit_code, env opt-in, _load_log_exemptions, per-entry timestamp/fields exemption, WARN printing).
+* Added tests to code/tests/test_submission_guard.py (17 guard tests).
+* Created code/tools/log_exemptions.txt (14 documented legacy entries with reasons).
+* Documented both opt-outs in code/README.md.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

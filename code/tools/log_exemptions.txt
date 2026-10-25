@@ -1,0 +1,22 @@
+# Documented legacy log-format exemptions (append-only log).
+#
+# log.txt is append-only per AGENTS.md section 5, so historical entries that
+# predate the model-verification convention were NOT edited or removed. Each
+# line below waives exactly one entry number (1-based position of the
+# timestamped entry in log.txt) followed by the reason. Every entry beyond
+# this list must fully comply, so new violations cannot be masked.
+1 SESSION START written by an earlier harness with model=unknown
+2 SESSION START written by an earlier harness with model=unknown
+3 status update from an earlier session with model=unknown
+4 log correction note from an earlier session with model=unknown
+10 SESSION START with model=unverified: dual-source identifier
+11 correction note from an earlier session without a context block
+12 SESSION START with model=unverified: dual-source identifier; non-ISO legacy
+  timestamp
+13 model-identifier correction note without a context block
+14 timestamp correction note without a context block
+18 model-identifier correction note without a context block
+20 transcript correction note without a context block
+21 classification diagnostic note without a context block
+31 summary correction note without a context block
+32 correction to the summary correction without a context block
