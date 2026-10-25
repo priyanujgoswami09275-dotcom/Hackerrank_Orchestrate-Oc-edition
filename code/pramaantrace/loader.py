@@ -51,7 +51,7 @@ IDENTIFIER_KEYS = {
 # (email, hash, phone, or stable reference). They are not user-authored
 # fields; their destination is inferred from the value shape.
 LINK_IDENTIFIER_KEYS = frozenset(
-    {"lookup_key", "query", "subject_key", "search_term", "correlation_key"}
+    {"lookup_key", "query", "subject_key", "subject_ref", "search_term", "correlation_key"}
 )
 
 # Column layout of readback handover rows: "- <ts> | <system> | <resource> | <type> | <status> | <subject>".
@@ -78,6 +78,15 @@ PIPE_TYPE_CATEGORY = {
     "BACKUP_ARCHIVE": "BACKUP_ARCHIVE",
     "ACCOUNT_TOMBSTONE": "ACCOUNT_TOMBSTONE",
     "DATA_FLOW": "DATA_FLOW",
+}
+
+# Service names observed inside evidence exports that denote the same
+# platform as the canonical system id already used by the activity
+# stream and the workflow contract. Normalizing them keeps evidence
+# rows comparable with the systems the plan reports.
+SYSTEM_ALIASES = {
+    "support_replica": "support_platform",
+    "search_index_service": "search_service",
 }
 
 SYSTEM_BY_TABLE = {
@@ -307,7 +316,7 @@ def _canonical_readback_attributes(pairs: Mapping[str, str], line: str) -> dict[
         if system:
             canonical["system_id"] = system.strip()
         if subject and not subject.strip().casefold().startswith("no direct"):
-            canonical["subject_reference"] = subject.strip()
+            canonical["subject_reference"] = subject.strip().strip("\\\"'")
         if status == "NOT_FOUND":
             canonical["status_code"] = "404"
         if record_type == "BACKUP_ARCHIVE":
@@ -325,6 +334,13 @@ def _canonical_readback_attributes(pairs: Mapping[str, str], line: str) -> dict[
                 canonical["identifiable"] = True
             elif status == "REDACTED":
                 canonical["redacted"] = True
+            # Handover rows place the record owner in the subject column;
+            # attachment ownership is the field the policy rule reads.
+            owner_value = subject.strip().strip("\\\"'") if subject else ""
+            if record_type == "SUPPORT_ATTACHMENT" and _sniff_link_identifier(
+                owner_value
+            ):
+                canonical["uploaded_by"] = owner_value
         elif record_type == "SECURITY_AUDIT_LOG" and status == "FOUND":
             canonical["integrity_check"] = "passed"
         return canonical
@@ -782,6 +798,23 @@ def normalize_text_content(
             key.casefold(): next((value for value in values if value), "")
             for key, *values in KV_PATTERN.findall(line)
         }
+        if enrich_enabled():
+            # Structured service exports ship one JSON object per line next to
+            # the timestamp. Merge its scalar fields so they have the same
+            # treatment as key=value log lines.
+            json_match = re.search(r"\{.*\}", line, flags=re.S)
+            if json_match:
+                try:
+                    payload = json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict):
+                    for key, value in payload.items():
+                        if isinstance(value, (dict, list)):
+                            continue
+                        pairs[str(key).casefold()] = (
+                            "" if value is None else str(value)
+                        )
         parsed.append((line_no, line, pairs))
 
     # Trace pairing: request rows of one operation often split the resource id
@@ -845,6 +878,8 @@ def normalize_text_content(
             or system_from_resource(resource_id)
             or "unclassified_text"
         ).strip().strip("\\\"'")
+        if enrich_enabled():
+            system_id = SYSTEM_ALIASES.get(system_id, system_id)
         attributes: dict[str, Any] = {
             **pairs,
             "line_no": line_no,

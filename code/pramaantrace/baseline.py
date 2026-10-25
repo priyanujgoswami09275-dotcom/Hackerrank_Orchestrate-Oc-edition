@@ -9,7 +9,12 @@ from typing import Any, Iterable, Mapping
 
 from .identity import IdentityResolver, ResolvedIdentity
 from .intent import authorizes_deletion
-from .loader import DatasetBundle, enrich_enabled
+from .loader import (
+    DatasetBundle,
+    enrich_enabled,
+    flatten_values,
+    system_from_resource,
+)
 from .planner import build_steps
 from .rules import RuleEngine
 from .store import NormalizedRecord, RecordScope, RecordStore, parse_timestamp
@@ -78,6 +83,97 @@ CLAIM_EVENT_ACTIONS = {
     "REDACT_RECORD": "REDACT",
     "ANONYMIZE_RECORD": "ANONYMIZE",
 }
+
+
+REFERENCE_SHAPE_PATTERN = re.compile(r"^[a-z][a-z_]*[a-z]_[0-9]+$")
+
+REFERENCE_KEY_EXCLUSIONS = frozenset(
+    {
+        "resource_id",
+        "trace_id",
+        "capture_id",
+        "file_id",
+        "evidence_id",
+        "conn_id",
+        "request_id",
+    }
+)
+
+
+def _referenced_resources(matched_records: Iterable[NormalizedRecord]) -> set[str]:
+    """Resource ids that subject-linked evidence records name in their
+    attributes (e.g. an index document naming its source account). These are
+    the subject's other resources the evidence itself ties to this person."""
+    referenced: set[str] = set()
+    for record in matched_records:
+        for key, value in flatten_values(record.attributes):
+            if key in REFERENCE_KEY_EXCLUSIONS:
+                continue
+            text = str(value).strip().strip("\\\"'")
+            if not REFERENCE_SHAPE_PATTERN.fullmatch(text):
+                continue
+            if text == record.resource_id:
+                continue
+            if text.casefold().startswith(("user_", "customer_")):
+                continue
+            if system_from_resource(text) is None:
+                continue
+            referenced.add(text)
+    return referenced
+
+
+def _wave_derived_account_ids(
+    store: RecordStore,
+    activities: Iterable[Mapping[str, str]],
+    *,
+    anchored_ids: set[str],
+    requested_at: str,
+    audit_at: str,
+) -> list[str]:
+    """Derive the subject's primary account id from the deletion worker's
+    own in-window wave.
+
+    The subject's known resources were queued for the same operation; where
+    the activity stream places exactly one deleted account row inside a
+    short neighbourhood of those known resources' own claim rows, that row
+    is the operation's account. Anything else stays unreported instead of
+    guessing among ambiguous candidates."""
+    requested = parse_timestamp(requested_at)
+    cutoff = parse_timestamp(audit_at)
+    claim_types = {"DELETE_RECORD", "REDACT_RECORD", "ANONYMIZE_RECORD"}
+    anchor_times = [
+        parse_timestamp(event["event_time"])
+        for event in activities
+        if event.get("resource_id") in anchored_ids
+        and event.get("event_type") in claim_types
+        and requested <= parse_timestamp(event["event_time"]) <= cutoff
+    ]
+    if not anchor_times:
+        return []
+    candidates: set[str] = set()
+    for event in activities:
+        if event.get("event_type") != "DELETE_RECORD":
+            continue
+        resource_id = event.get("resource_id", "")
+        if not resource_id.startswith("account_") and not resource_id.startswith(
+            "account-"
+        ):
+            continue
+        event_time = parse_timestamp(event["event_time"])
+        if event_time < requested or event_time > cutoff:
+            continue
+        if any(abs((event_time - anchor).total_seconds()) <= 420 for anchor in anchor_times):
+            candidates.add(resource_id)
+    if len(candidates) != 1:
+        return []
+    derived = next(iter(candidates))
+    # Never re-report resources the evidence already treats subject-linked,
+    # and never derive an account that itself carries store records.
+    if not derived.casefold().startswith("account_"):
+        return []
+    if store.query(audit_at=audit_at, resource_id=derived):
+        return []
+    return [derived]
 
 
 def _claim_action(
@@ -378,6 +474,55 @@ def assess_case(
     compliant_verifications: list[dict[str, str]] = []
     missing_required_retention = False
 
+    crossref_verifications: list[dict[str, str]] = []
+    if enrich_enabled():
+        matched_records = store.query(
+            audit_at=request["audit_at"],
+            identifier_values=identity_values,
+        )
+        known_ids = {resource_id for _, resource_id, _ in keys}
+        for resource_id in sorted(
+            _referenced_resources(matched_records) - known_ids
+        ):
+            referenced_system = system_from_resource(resource_id)
+            if referenced_system is None:
+                continue
+            if store.query(audit_at=request["audit_at"], resource_id=resource_id):
+                continue
+            # A referenced resource joins the closing checklist only, and only if
+            # its recorded deletion belongs to this request window.
+            if _claim_action(
+                activities,
+                resource_id,
+                request["requested_at"],
+                request["audit_at"],
+            ) == "DELETE":
+                crossref_verifications.append(
+                    {
+                        "system_id": referenced_system,
+                        "resource_id": resource_id,
+                        "operation": "VERIFY_RECORD_ABSENT",
+                        "state": "ABSENT",
+                        "evidence_id": "",
+                    }
+                )
+        for account_id in _wave_derived_account_ids(
+            store,
+            activities,
+            anchored_ids={record.resource_id for record in matched_records},
+            requested_at=request["requested_at"],
+            audit_at=request["audit_at"],
+        ):
+            crossref_verifications.append(
+                {
+                    "system_id": system_from_resource(account_id) or "account_service",
+                    "resource_id": account_id,
+                    "operation": "VERIFY_RECORD_ABSENT",
+                    "state": "ABSENT",
+                    "evidence_id": "",
+                }
+            )
+
     for system_id, resource_id, category in sorted(keys):
         records = _candidate_records(
             store,
@@ -556,15 +701,25 @@ def assess_case(
                     }
                 )
             else:
-                compliant_verifications.append(
-                    {
-                        "system_id": system_id,
-                        "resource_id": resource_id,
-                        "operation": "VERIFY_RECORD_ABSENT",
-                        "state": "ABSENT",
-                        "evidence_id": state.evidence_id,
-                    }
+                # The evidence may already claim this record was deleted. Only
+                # report the closing verification when that observed absence
+                # is anchored to this request's own operation window; records
+                # seen absent only in much older captures describe earlier
+                # lifecycle operations, not this deletion's plan.
+                anchored_in_window = not enrich_enabled() or (
+                    parse_timestamp(representative.captured_at)
+                    >= parse_timestamp(request["requested_at"])
                 )
+                if anchored_in_window:
+                    compliant_verifications.append(
+                        {
+                            "system_id": system_id,
+                            "resource_id": resource_id,
+                            "operation": "VERIFY_RECORD_ABSENT",
+                            "state": "ABSENT",
+                            "evidence_id": state.evidence_id,
+                        }
+                    )
             continue
 
         if action in {"REDACT", "ANONYMIZE"}:
@@ -654,6 +809,7 @@ def assess_case(
         # evidence because they have not happened yet.
         incomplete_verifications = [
             *future_verifications,
+            *crossref_verifications,
             *(
                 {**step, "evidence_id": ""}
                 for step in compliant_verifications
