@@ -258,10 +258,13 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
 def enrich_enabled() -> bool:
     """Feature flag for linkage enrichments (E1 sniffing, trace pairing).
 
-    Default off: behavior is byte-identical to the pre-enrichment baseline so
-    A/B comparisons stay meaningful. Opt in with PRAMAANTRACE_ENRICH=1.
+    Default on so a plain run reproduces the enriched baseline. Explicitly set
+    PRAMAANTRACE_ENRICH to a false-like value for an A/B baseline comparison.
     """
-    return os.environ.get("PRAMAANTRACE_ENRICH", "").strip().casefold() in {
+    configured = os.environ.get("PRAMAANTRACE_ENRICH")
+    if configured is None:
+        return True
+    return configured.strip().casefold() in {
         "1",
         "true",
         "yes",
