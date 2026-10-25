@@ -52,6 +52,25 @@ available, then falls back to Tesseract. Text-bearing PDFs use `pypdf`; scanned
 PDFs use Vision or, when available, PyPDFium2 rendering plus Tesseract.
 Extracted text is cached outside the package.
 
+### Evidence-linkage enrichment flag
+
+`PRAMAANTRACE_ENRICH=1` enables the evidence-linkage enrichment pass: system
+name normalization (`support_replica` → `support_platform`,
+`search_index_service` → `search_service`), structured JSON-lines log parsing,
+trace pairing on subject-reference echoes, support-attachment ownership from
+handover files, window-anchored close-out verifications, evidence-named
+cross-resource references, and unique-wave account derivation from the
+deletion worker's own operation window. With the flag unset every behavior is
+exactly the pre-enrichment baseline. On the 32 public samples, the enriched run
+matches 29/32 deletion statuses with zero extra steps, compared with 27/32 and
+two extra steps for the baseline; the submitted `output.csv` was produced with
+the flag set:
+
+```bash
+PRAMAANTRACE_ENRICH=1 python3 run.py
+```
+
+
 ## One-command sample evaluation
 
 From this `code/` directory, run the baseline on the public sample and evaluate
