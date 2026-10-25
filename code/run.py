@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the deterministic PramaanTrace baseline and write repo-root output.csv."""
+"""Run the PramaanTrace deletion audit and write repo-root output.csv."""
 
 from __future__ import annotations
 
@@ -13,6 +13,10 @@ ROOT = CODE.parent
 if str(CODE) not in sys.path:
     sys.path.insert(0, str(CODE))
 
+from pramaantrace.agent.client import OpenAICompatibleClient  # noqa: E402
+from pramaantrace.agent.config import AgentConfig, AgentConfigurationError  # noqa: E402
+from pramaantrace.agent.loop import Investigator  # noqa: E402
+from pramaantrace.agent.pipeline import AgentRunResult, run_agent_pipeline  # noqa: E402
 from pramaantrace.baseline import run_baseline  # noqa: E402
 from pramaantrace.loader import load_dataset, read_csv_rows  # noqa: E402
 from pramaantrace.validator import validate_rows  # noqa: E402
@@ -38,7 +42,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run the structured-only baseline for media impact comparisons",
     )
+    parser.add_argument(
+        "--disable-agent",
+        action="store_true",
+        help="skip LLM investigation even when credentials are configured",
+    )
     args = parser.parse_args(argv)
+
+    agent_config = None
+    if not args.disable_agent:
+        try:
+            agent_config = AgentConfig.from_env()
+        except AgentConfigurationError as exc:
+            parser.error(str(exc))
 
     requests_path = args.requests
     if not requests_path.is_absolute():
@@ -50,7 +66,16 @@ def main(argv: list[str] | None = None) -> int:
         include_media=not args.disable_media,
     )
     bundle.tables["deletion_requests.csv"] = requests
-    rows = run_baseline(bundle)
+    agent_result: AgentRunResult | None = None
+    if agent_config is None:
+        rows = run_baseline(bundle)
+    else:
+        investigator = Investigator(
+            OpenAICompatibleClient(agent_config),
+            step_cap=agent_config.step_cap,
+        )
+        agent_result = run_agent_pipeline(bundle, investigator)
+        rows = agent_result.rows
     validate_rows(
         requests,
         rows,
@@ -71,6 +96,40 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     print("Validation: PASS")
+    if agent_result is not None:
+        print("Investigator: enabled")
+        print(
+            "Investigator cases: "
+            f"attempted={agent_result.attempted_cases}, "
+            f"completed={agent_result.completed_cases}, "
+            f"fallbacks={agent_result.fallback_cases}"
+        )
+        print(
+            "Investigator candidates: "
+            f"accepted={agent_result.accepted_candidates}, "
+            f"rejected={agent_result.rejected_candidates}"
+        )
+        usage = agent_result.usage_summary
+        if usage:
+            print(
+                "Model usage: "
+                f"network calls={usage.get('network_calls', 0)}, "
+                f"cache hits={usage.get('cache_hits', 0)}, "
+                f"input tokens={usage.get('input_tokens', 0)}, "
+                f"output tokens={usage.get('output_tokens', 0)}"
+            )
+            cost = usage.get("cost_usd")
+            if cost is None:
+                print(
+                    "Model cost: not fully reported "
+                    f"({usage.get('cost_unreported_calls', 0)} call(s) missing provider cost/rates)"
+                )
+            else:
+                print(f"Model cost: ${cost:.8f}")
+    elif args.disable_agent:
+        print("Investigator: disabled by --disable-agent")
+    else:
+        print("Investigator: disabled (LLM_API_KEY not set)")
     print(
         "Media reader: "
         + (
