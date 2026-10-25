@@ -889,3 +889,43 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:12:30+05:30] Step 3 — agent gate unavailable
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_STEP_CAP=8, AGENT_CALL_BUDGET). Print: model calls made, findings proposed/verified/dropped, fallbacks, skipped-by-budget, tokens. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4. Raw traces (no keys) for 3 sample cases. Agent runs only on uncertain cases, with retries/backoff on 429/5xx, fallback to baseline, cached calls, audit_at-gated tools, findings re-verified by code, never writing final steps. Keep the agent in the final output ONLY if it improves status or tuple-matched steps and hurts nothing; otherwise submit baseline-only and say "no measurable gain" plainly. Give the full run at most the time you have left after steps 4-7; if it can't finish, use the cache so far, and report the partial coverage honestly. Two warm-cache runs must have identical SHA-256.
+
+Agent Response Summary:
+Recorded agent unavailable and skipped the model run because `.env` is absent and required LLM settings are unset in the current shell. The existing 518-case process remains active but has produced no run-log content or cache responses; no duplicate was started. Zero completed calls/tokens are verified, while any in-flight attempt count is unverified.
+
+Actions:
+* Checked presence only (did not print values): `.env` absent; LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, AGENT_CALL_BUDGET unset.
+* Rechecked PID 13610: still active; its only observed socket was not an established response, run log remained empty, and cache contained 0 responses.
+* Updated HANDOFF.md; appended this record to log.txt.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
+
+## [2026-10-25T13:12:44+05:30] Step 3 observation correction
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT (M5), time-boxed. Model nvidia/nemotron-3.5-super-vl:free via OpenRouter; config from env or .env. One connectivity+tool-call test first; if it fails, record "agent unavailable" and skip to step 4.
+
+Agent Response Summary:
+Clarification to the immediately preceding entry: the socket state shown by lsof was CLOSE_WAIT, not proof that no HTTP response occurred. The supported facts are that the process log was empty and its model-response cache had 0 rows; completed call and token usage remain unverified beyond the zero recorded responses.
+
+Actions:
+* Appended this correction without changing the prior log entry.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

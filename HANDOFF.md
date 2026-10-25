@@ -64,6 +64,18 @@ operational resume point (kept out of code.zip; committed to git).
   within 420 seconds of a linked resource's in-window deletion claim and no
   surviving stored record. All evidence/resource joins are `audit_at` gated.
 
+### Step 3 agent gate
+
+- Agent unavailable in this session: `.env` is absent and the current shell
+  has no `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, or
+  `AGENT_CALL_BUDGET`. No connectivity/tool-call test could be authenticated.
+- The pre-existing 518-case `code/run.py` process (PID 13610) remains active;
+  its log is empty, cache has 0 responses, and no usage report was produced.
+  It was not duplicated or treated as a completed test. Verified completed
+  calls/tokens: 0; any in-flight attempt count is unverified. No traces,
+  ablation run, or agent output is claimed. Continue to Step 4 and retain the
+  committed baseline unless later completed evidence proves agent gain.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)
