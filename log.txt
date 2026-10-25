@@ -612,3 +612,197 @@ Worktree: /Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
 Parent Agent: none
 Language: py
 Time Remaining: not configured
+
+## [2026-10-25T12:05:30+05:30] E1-E3 verified, final 518-case output.csv shipped
+
+User Prompt (verbatim, secrets redacted):
+[Continuation checkpoint resumed the session mid-task: verify the claim-gate removal edit, drop the unused identity_values param, trial-run all 518 cases, commit, and refresh evaluation reports. Full text retained in session summary.]
+
+Agent Response Summary:
+Verified the capture-anchored close-out gate (claim-gate conjunction removed): PRAMAANTRACE_ENRICH=1 tests 47/47 passed and A/B flag-on held at status 29/32, missing 32, extra 0 while flag-off stayed byte-identical (27/32, 80, 2). Dropped the dead identity_values parameter from _wave_derived_account_ids and re-verified both flags unchanged. Ran the full 518-case trial: 518/518 validated, COMPLETE=133 INCOMPLETE=376 NA=9, 18.45s, no crashes; independent integrity checks found zero bad step numbers, zero phase-order violations, zero field errors, all rows sorted. Regenerated repo-root output.csv with PRAMAANTRACE_ENRICH=1; its SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed matches the trial byte-for-byte, confirming determinism. Official harness on regenerated sample predictions: flag-on status 90.62%, step precision 100%, recall 83.42%, field 73.06%, sequence 37.50% (12/32). Committed enrichment work (5eb30c5) and docs (764e17c): evaluation_report.md gained the enrichment section with both-flag measurement tables, residual 32-step accepted-loss breakdown (18 wave-link account verifies, 7 unlinked cited analytics, 7 post-cutoff audit verifies), current wrong-status analysis (01/02/04 zero-link family), new full-dataset stats and sort clarification; usage_report.md updated to zero model calls with new SHA and status counts; code/README.md documents PRAMAANTRACE_ENRICH and the production invocation.
+
+Actions:
+* Verified baseline.py close-out gate edit (tests + A/B both flags)
+* Edited baseline.py (removed unused identity_values param)
+* Ran code/run.py full 518-case trial and final root run (PRAMAANTRACE_ENRICH=1)
+* Ran code/evaluation/harness.py and failure_analysis.py on regenerated sample predictions (both flags)
+* Edited code/README.md, code/evaluation/evaluation_report.md, code/evaluation/usage_report.md
+* Committed 5eb30c5 (enrichment), 764e17c (docs + final output.csv)
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:48:12+0530] Resume agent-stage design and default-mode review
+
+User Prompt (verbatim, secrets redacted):
+Continue from where you have been last interrupted
+
+Agent Response Summary:
+Resumed the approved follow-up: user chose the full investigator LLM stage and asked that enriched linkage be the default. Invoked brainstorming, writing-plans, TDD, and verification skills. Read the existing architecture/PRD, run path, record store, baseline, planner, identity resolver, tests, and setup docs; confirmed there is no investigator implementation yet and that the store already enforces per-query audit cutoffs. Reviewed current OpenRouter docs for tool calling and usage/cost fields, and checked current model capability through public documentation. No production files or datasets were changed and no model/API call was made. Preparing an architectural design for approval, with a separate explicit design gate on whether LLM invocation should be opt-in to avoid accidental spend.
+
+Actions:
+* Invoked brainstorming, writing-plans, test-driven-development, verification-before-completion skills
+* Read ARCHITECTURE.md, PRD.md, agent_trace_instructions.md, code/run.py, code/README.md, store.py, baseline.py, planner.py, identity.py, requirements.txt, test_baseline.py
+* Queried Context7 OpenRouter documentation for tool calling and usage/cost fields
+* Searched public OpenRouter docs for configured model tool-calling support
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:50:25+0530] Investigator architecture approved; refining run contract
+
+User Prompt (verbatim, secrets redacted):
+Approve approach (Recommended)
+
+Agent Response Summary:
+User approved the proposed LLM investigator/verifier architecture: OpenAI-compatible, read-only investigation tools bound to audit_at; deterministic verification and existing planning code retain authority; cache and usage tracking are required. Now specifying invocation safety, per-case cap, failure fallback, and the strict finding-acceptance contract before writing the design spec.
+
+Actions:
+* Recorded user approval of investigator/verifier architecture
+* Preparing next design section for invocation controls and finding verification
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:52:04+0530] User selected automatic investigator invocation with credentials
+
+User Prompt (verbatim, secrets redacted):
+Auto with credentials
+
+Agent Response Summary:
+User selected automatic agent invocation whenever LLM credentials are configured, rather than requiring an explicit flag. Design now specifies default enrichment on, model-free baseline when no credentials are present, and automatic full investigation on deletion-authorized cases when credentials are present; still preserving deterministic verification and policy/planner authority. The agreed default per-case cap is 8 model turns. Preparing the final design section for test/evaluation/error-handling approval before writing the spec.
+
+Actions:
+* Recorded invocation policy selection: auto when credentials are present
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:53:11+0530] Agent testing and failure-handling design approved
+
+User Prompt (verbatim, secrets redacted):
+Approve section (Recommended)
+
+Agent Response Summary:
+User approved the testing/evaluation/failure behavior: TDD for default enrichment and agent safeguards, baseline-vs-agent sample evaluation, full 518-case run, warm-cache hash comparison, usage reporting, no-key deterministic fallback, configuration preflight, and per-case fallback/counting for runtime API errors. All major design sections are now approved. Next step is to write and self-review the investigator design spec; implementation remains gated on the user's review of that written spec and the subsequent implementation plan.
+
+Actions:
+* Recorded approval of testing/evaluation/failure-handling design
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:55:15+0530] Written investigator design spec committed for user review
+
+User Prompt (verbatim, secrets redacted):
+Approve section (Recommended)
+
+Agent Response Summary:
+Completed and self-reviewed the written architectural spec at , covering the user-approved auto-with-credentials policy, enrichment-on-by-default behavior, 8-turn cap, temporal tool boundaries, deterministic finding verifier, cache/usage reporting, failure fallback, tests, and acceptance criteria. Placeholder scan found no TBD/TODO/UNVERIFIED entries (one lexical match is the intended phrase “unverified candidates”);  passed. Committed the design doc as . No production code was changed and no LLM call was made. Awaiting review of this exact written spec before producing an implementation plan.
+
+Actions:
+* Added and self-reviewed docs/superpowers/specs/2026-10-25-investigator-agent-design.md
+* Ran placeholder scan, git diff --check, and spec structure check
+* Committed 6e1240b
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:55:22+0530] Log summary correction: design spec details
+
+The immediately preceding supplemental entry lost inline-backtick text to shell command substitution while appending; the log was append-only, so that entry remains unchanged. The exact details are: design spec path=docs/superpowers/specs/2026-10-25-investigator-agent-design.md; verification command  passed; design commit=6e1240b. The attempted shell substitutions were interpreted as commands and failed without changing project files. The spec itself was already committed successfully before that log append.
+
+## [2026-10-25T11:55:30+0530] Correction to log summary correction
+
+The previous correction append also used inline backticks, so shell substitution removed the literal verification-command name. This final append-only correction records it plainly: the verification command was git diff --check, and it passed. No files were changed by the failed substitutions.
+
+## [2026-10-25T11:56:55+0530] Investigator design spec approved; writing implementation plan
+
+User Prompt (verbatim, secrets redacted):
+Approve spec
+
+Agent Response Summary:
+User approved the committed architectural spec at docs/superpowers/specs/2026-10-25-investigator-agent-design.md. Proceeding to create and self-review the bite-sized implementation plan as required; production code and LLM calls remain blocked until the user reviews the plan and confirms inline execution.
+
+Actions:
+* Recorded written-spec approval
+* Invoked writing-plans workflow to prepare docs/superpowers/plans/2026-10-25-investigator-agent.md
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T11:59:38+0530] Investigator implementation plan drafted for review
+
+User Prompt (verbatim, secrets redacted):
+Approve spec
+
+Agent Response Summary:
+Wrote and self-reviewed docs/superpowers/plans/2026-10-25-investigator-agent.md after the approved design spec. The 7-task plan covers the default enrichment flip; standard-library API client/cache/usage; cutoff-bound tools; capped investigator loop; candidate-link verifier and deterministic reassessment; CLI auto-wiring when credentials are present; and baseline-vs-agent sample/full 518-case evaluation, reports, and packaging. Each implementation task begins with a failing test and includes verification/commit steps. Plan structure check passed: 187 lines, all required sections present, no trailing whitespace, and no TBD/TODO/UNVERIFIED placeholders. No production changes or LLM calls were made. Awaiting user review and confirmation of inline execution.
+
+Actions:
+* Read baseline.py run_baseline integration point
+* Added docs/superpowers/plans/2026-10-25-investigator-agent.md
+* Checked required plan sections, whitespace, and placeholders
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T12:00:05+0530] Plan approved for inline execution in isolated worktree
+
+User Prompt (verbatim, secrets redacted):
+Approve; implement inline (Recommended)
+
+Agent Response Summary:
+User approved the implementation plan and selected inline execution. Next, invoke the worktree and executing-plan workflows, then implement the seven TDD tasks in an isolated worktree. User has authorized the full 518-case LLM run; no credentials will be exposed in logs or outputs.
+
+Actions:
+* Recorded plan and inline-execution approval
+* Preparing isolated worktree setup and task-by-task TDD execution
+
+Context:
+tool=opencode
+model=glm-5.3-flash-free
+branch=main
+repo_root=/Users/priyanujgoswami/PramaanTrace/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
