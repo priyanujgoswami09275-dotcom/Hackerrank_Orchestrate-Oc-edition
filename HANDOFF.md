@@ -230,12 +230,12 @@ operational resume point (kept out of code.zip; committed to git).
 
 ## Exact next step
 
-1. Step 7: rebuild `code.zip` with `code/package_submission.py`; list at depth
-   2; secret-scan working tree, zip, `log.txt`, and git history (redacted);
-   verify `.gitignore` covers `.env`, caches, `output_baseline.csv`,
-   `.DS_Store`; show `git status`/`git remote -v`; NO push of any kind.
-2. Step 8: final report (paths, guard table, metrics, agent numbers,
-   UNRESOLVED cases, secret scan, model name, skipped items). Nothing after.
+1. DONE — no further steps. The final report (paths, guard table, metrics,
+   agent numbers, UNRESOLVED cases, secret-scan results, model name) was
+   delivered as the last item of the step-7 session; nothing follows it.
+2. For any future session: do not run the 518-case agent (provider 429
+   documented); keep log.txt append-only; re-run the guard strict and with the
+   opt-out if any artifact changes.
 
 ## Key commands
 

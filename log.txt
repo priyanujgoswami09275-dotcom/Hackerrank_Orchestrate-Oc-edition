@@ -1211,3 +1211,22 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:32:16+05:30] Final-task completion marker
+
+User Prompt (verbatim, secrets redacted):
+(identical to step 7/8 prompts on 2026-10-25; final report delivered at end)
+
+Agent Response Summary:
+HANDOFF.md ledger closed: all final-task steps 1-8 complete; step 8's report is the session's last output. key-scan outcome re-verified: the environment LLM key appears in no tracked file, the zip, log.txt, or any commit; the push-stopping condition (key in history) is FALSE. Submission remains baseline-only with the documented intent fix.
+
+Actions:
+* Updated HANDOFF.md final ledger; committed.
+
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
