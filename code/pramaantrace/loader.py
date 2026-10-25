@@ -47,6 +47,39 @@ IDENTIFIER_KEYS = {
     "requester_name": "names",
 }
 
+# Lookup/search echo keys that carry the requesting subject's identifier
+# (email, hash, phone, or stable reference). They are not user-authored
+# fields; their destination is inferred from the value shape.
+LINK_IDENTIFIER_KEYS = frozenset(
+    {"lookup_key", "query", "subject_key", "search_term", "correlation_key"}
+)
+
+# Column layout of readback handover rows: "- <ts> | <system> | <resource> | <type> | <status> | <subject>".
+PIPE_ROW_PATTERN = re.compile(
+    r"^\s*-\s*(\S+)\s+\|\s+([a-z][a-z_]+)\s+\|\s+([A-Za-z][A-Za-z0-9_-]*_[A-Za-z0-9_-]+)"
+    r"\s+\|\s+([A-Za-z0-9_]+)\s+\|\s+([A-Za-z0-9_ ]+?)\s+\|\s+(.*?)\s*$"
+)
+
+PIPE_TYPE_CATEGORY = {
+    "USER_PROFILE": "USER_PROFILE",
+    "SECONDARY_IDENTIFIER": "SECONDARY_IDENTIFIER",
+    "SEARCH_INDEX_ENTRY": "SEARCH_INDEX_ENTRY",
+    "CACHE_ENTRY": "CACHE_ENTRY",
+    "SUPPORT_MESSAGE": "SUPPORT_MESSAGE",
+    "SUPPORT_ATTACHMENT": "SUPPORT_ATTACHMENT",
+    "ANALYTICS_PROFILE": "ANALYTICS_PROFILE",
+    "PRODUCT_TELEMETRY": "PRODUCT_TELEMETRY",
+    "USER_EXPORT": "USER_EXPORT",
+    "MARKETING_PROFILE": "MARKETING_PROFILE",
+    "EMAIL_DELIVERY_LOG": "EMAIL_DELIVERY_LOG",
+    "SECURITY_AUDIT_LOG": "SECURITY_AUDIT_LOG",
+    "AUDIT_RECORD": "SECURITY_AUDIT_LOG",
+    "LEGAL_HOLD_RECORD": "LEGAL_HOLD_RECORD",
+    "BACKUP_ARCHIVE": "BACKUP_ARCHIVE",
+    "ACCOUNT_TOMBSTONE": "ACCOUNT_TOMBSTONE",
+    "DATA_FLOW": "DATA_FLOW",
+}
+
 SYSTEM_BY_TABLE = {
     "customer_profiles": ("account_service", "USER_PROFILE"),
     "customer_profiles_primary": ("account_service", "USER_PROFILE"),
@@ -135,6 +168,9 @@ MEDIA_CACHE_VERSION = 2
 
 EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
 HASH_PATTERN = re.compile(r"\b[a-f0-9]{64}\b", re.I)
+HASH_VALUE_PATTERN = re.compile(r"^[a-f0-9]{64}$", re.I)
+USER_REF_VALUE_PATTERN = re.compile(r"^(?:user|customer)_[A-Za-z0-9_-]+$", re.I)
+PHONE_VALUE_PATTERN = re.compile(r"^\+?[0-9][0-9 ()\-.]{5,20}$")
 RESOURCE_PATTERN = re.compile(
     r"\b(?:resource_id|resource|record_id|object_id)\s*[=:]\s*['\"]?([A-Za-z][A-Za-z0-9_-]*_[A-Za-z0-9_-]+)",
     re.I,
@@ -210,6 +246,113 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def enrich_enabled() -> bool:
+    """Feature flag for linkage enrichments (E1 sniffing, trace pairing).
+
+    Default off: behavior is byte-identical to the pre-enrichment baseline so
+    A/B comparisons stay meaningful. Opt in with PRAMAANTRACE_ENRICH=1.
+    """
+    return os.environ.get("PRAMAANTRACE_ENRICH", "").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _sniff_link_identifier(value: str) -> str | None:
+    """Map a lookup/search-echo value to its identifier bucket by shape."""
+    text = value.strip()
+    if not text or text.casefold() in {"null", "none", "nan", "n/a", "unknown", "nil", "null;"}:
+        return None
+    if HASH_VALUE_PATTERN.fullmatch(text):
+        return "email_hashes"
+    if "@" in text:
+        return "emails" if EMAIL_PATTERN.fullmatch(text) else None
+    reference = USER_REF_VALUE_PATTERN.fullmatch(text)
+    if reference:
+        return (
+            "user_ids"
+            if text.casefold().startswith("user_")
+            else "customer_references"
+        )
+    if PHONE_VALUE_PATTERN.fullmatch(text):
+        return "phones"
+    return None
+
+
+def _canonical_readback_attributes(pairs: Mapping[str, str], line: str) -> dict[str, Any]:
+    """Normalize readback-specific field shapes into canonical policy fields.
+
+    Covers two generic readback shapes (no case-specific logic):
+
+    * handover/list rows: ``- <ts> | <system> | <resource> | <type> | <status> | <subject>``
+      whose status column states the observed record state.
+    * lookup lines that already answer a restore-policy question with
+      ``eligible=``/``deletion_block=`` pairs.
+
+    Returns canonical attribute overrides; an empty dict leaves the record as
+    parsed.
+    """
+    canonical: dict[str, Any] = {}
+    row = PIPE_ROW_PATTERN.match(line)
+    if row:
+        _ts, system, resource, record_type, status, subject = row.groups()
+        status = status.strip()
+        record_type = record_type.upper()
+        category = PIPE_TYPE_CATEGORY.get(record_type)
+        if category:
+            canonical["data_category"] = category
+        canonical["readback_status"] = status
+        canonical["_pipe_resource"] = resource
+        if system:
+            canonical["system_id"] = system.strip()
+        if subject and not subject.strip().casefold().startswith("no direct"):
+            canonical["subject_reference"] = subject.strip()
+        if status == "NOT_FOUND":
+            canonical["status_code"] = "404"
+        if record_type == "BACKUP_ARCHIVE":
+            if status in {"ACTIVE", "RESTORABLE"}:
+                canonical["restore_allowed"] = True
+            elif status in {"BLOCKED", "RESTORE_BLOCKED"}:
+                canonical["restore_allowed"] = False
+        elif record_type == "DATA_FLOW":
+            if status == "ACTIVE":
+                canonical["enabled"] = True
+            elif status in {"DISABLED", "INACTIVE", "STOPPED"}:
+                canonical["enabled"] = False
+        elif record_type in {"SUPPORT_MESSAGE", "SUPPORT_ATTACHMENT"}:
+            if status == "IDENTIFIABLE":
+                canonical["identifiable"] = True
+            elif status == "REDACTED":
+                canonical["redacted"] = True
+        elif record_type == "SECURITY_AUDIT_LOG" and status == "FOUND":
+            canonical["integrity_check"] = "passed"
+        return canonical
+
+    if "eligible" in pairs or "deletion_block" in pairs:
+        if "eligible" in pairs:
+            eligible = _truthy(pairs.get("eligible", ""))
+            block = (
+                _truthy(pairs.get("deletion_block", ""))
+                if "deletion_block" in pairs
+                else False
+            )
+            canonical["restore_allowed"] = bool(eligible) and not block
+        return canonical
+    return {}
+
+
+def _truthy(value: str) -> bool:
+    return str(value).strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "enabled",
+        "allowed",
+        "active",
+    }
+
+
 def flatten_values(value: Any, key: str = "") -> Iterable[tuple[str, Any]]:
     if isinstance(value, Mapping):
         for child_key, child_value in value.items():
@@ -225,6 +368,8 @@ def extract_identifiers(attributes: Mapping[str, Any], raw_text: str = "") -> di
     found: dict[str, set[str]] = {}
     for key, value in flatten_values(attributes):
         destination = IDENTIFIER_KEYS.get(key)
+        if not destination and enrich_enabled() and str(key) in LINK_IDENTIFIER_KEYS:
+            destination = _sniff_link_identifier(str(value))
         if destination and isinstance(value, (str, int, float)):
             text = str(value).strip()
             if text and text.casefold() not in {"null", "none", "nan", "n/a", "unknown"}:
@@ -630,11 +775,40 @@ def normalize_text_content(
         )
     )
     count = 0
-    for line_no, line in enumerate(text.splitlines(), start=1):
+    lines = text.splitlines()
+    parsed: list[tuple[int, str, dict[str, str]]] = []
+    for line_no, line in enumerate(lines, start=1):
         pairs = {
             key.casefold(): next((value for value in values if value), "")
             for key, *values in KV_PATTERN.findall(line)
         }
+        parsed.append((line_no, line, pairs))
+
+    # Trace pairing: request rows of one operation often split the resource id
+    # and the looking-up subject across consecutive lines with a shared
+    # trace_id (e.g. lookup.started carries lookup_key, query.completed carries
+    # resource_id). Join them per trace so the subject links to the resource.
+    trace_links: dict[str, tuple[str, str]] = {}
+    if enrich_enabled():
+        seen_trace_values: dict[str, set[tuple[str, str]]] = {}
+        for _line_no, line, pairs in parsed:
+            trace_id = str(pairs.get("trace_id", "")).strip()
+            if not trace_id:
+                continue
+            for key in LINK_IDENTIFIER_KEYS:
+                value = pairs.get(key, "")
+                if value and _sniff_link_identifier(value):
+                    seen_trace_values.setdefault(trace_id, set()).add((key, value))
+        for trace_id, entries in seen_trace_values.items():
+            keys = {key for key, _ in entries}
+            values = {value for _, value in entries}
+            if len(keys) == 1 and len(values) == 1:
+                key = next(iter(keys))
+                value = next(iter(values))
+                trace_links[trace_id] = (key, value)
+
+    for line_no, line, pairs in parsed:
+        effective_line = line
         resource_match = RESOURCE_PATTERN.search(line)
         resource_id = (
             pairs.get("resource_id")
@@ -643,6 +817,21 @@ def normalize_text_content(
             or pairs.get("object_id")
             or (resource_match.group(1) if resource_match else "")
         )
+        canonical: dict[str, Any] = {}
+        if enrich_enabled():
+            trace_id = str(pairs.get("trace_id", "")).strip()
+            link = trace_links.get(trace_id)
+            if link and not pairs.get(link[0]):
+                # Merge the partner line's subject identifier into this line's
+                # attributes so extract_identifiers can see it, and extend the
+                # scanned text so email/hash extraction applies as well.
+                key, value = link
+                pairs = {**pairs, key: value}
+                effective_line = f"{line} {key}={value}"
+            canonical = _canonical_readback_attributes(pairs, line)
+            if canonical:
+                resource_id = resource_id or str(canonical.get("_pipe_resource", ""))
+                pairs = {**pairs, **canonical}
         if not resource_id:
             continue
         resource_id = str(resource_id).strip().strip("\\\"'")
@@ -671,7 +860,7 @@ def normalize_text_content(
                 system_id=system_id,
                 resource_id=resource_id,
                 category=category,
-                identifiers=extract_identifiers(attributes, line),
+                identifiers=extract_identifiers(attributes, effective_line),
                 attributes=attributes,
             )
         )

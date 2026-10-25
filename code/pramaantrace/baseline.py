@@ -9,7 +9,7 @@ from typing import Any, Iterable, Mapping
 
 from .identity import IdentityResolver, ResolvedIdentity
 from .intent import authorizes_deletion
-from .loader import DatasetBundle
+from .loader import DatasetBundle, enrich_enabled
 from .planner import build_steps
 from .rules import RuleEngine
 from .store import NormalizedRecord, RecordScope, RecordStore, parse_timestamp
@@ -30,6 +30,17 @@ VERIFICATION_FOR_ACTION = {
     "REDACT": ("VERIFY_RECORD_REDACTED", "REDACTED"),
     "ANONYMIZE": ("VERIFY_RECORD_ANONYMIZED", "ANONYMIZED"),
     "RETAIN": ("VERIFY_RECORD_PRESENT", "PRESENT"),
+}
+
+# Canonical attribute names each identifier bucket maps onto for the policy
+# checks that read attribute fields.
+IDENTIFIER_ATTRIBUTES = {
+    "emails": "email",
+    "email_hashes": "email_hash",
+    "phones": "phone",
+    "user_ids": "user_id",
+    "customer_references": "customer_reference",
+    "names": "full_name",
 }
 
 
@@ -60,6 +71,42 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return str(value).strip().casefold() in {"1", "true", "yes", "enabled", "active", "allowed"}
+
+
+CLAIM_EVENT_ACTIONS = {
+    "DELETE_RECORD": "DELETE",
+    "REDACT_RECORD": "REDACT",
+    "ANONYMIZE_RECORD": "ANONYMIZE",
+}
+
+
+def _claim_action(
+    activities: Iterable[Mapping[str, str]],
+    resource_id: str,
+    requested_at: str,
+    audit_at: str,
+) -> str | None:
+    """Policy action the deletion workflow claimed for a resource within the
+    request window. The latest claim inside the window wins."""
+    requested = parse_timestamp(requested_at)
+    cutoff = parse_timestamp(audit_at)
+    best: Mapping[str, str] | None = None
+    best_time = None
+    for event in activities:
+        if event.get("resource_id") != resource_id:
+            continue
+        action = CLAIM_EVENT_ACTIONS.get(event.get("event_type", ""))
+        if action is None:
+            continue
+        event_time = parse_timestamp(event["event_time"])
+        if event_time < requested or event_time > cutoff:
+            continue
+        if best_time is None or event_time >= best_time:
+            best = event
+            best_time = event_time
+    if best is None:
+        return None
+    return CLAIM_EVENT_ACTIONS.get(str(best.get("event_type", "")))
 
 
 def _explicit_absence(record: NormalizedRecord) -> bool:
@@ -126,6 +173,15 @@ def _latest_current_state(
                 parse_timestamp(item.captured_at),
                 item.capture_id,
                 item.resource_id,
+                *(
+                    (
+                        int(item.attributes["line_no"]),
+                    )
+                    if enrich_enabled()
+                    and isinstance(item.attributes.get("line_no"), (int, str))
+                    and str(item.attributes.get("line_no", "")).isdigit()
+                    else (0,)
+                ),
             ),
         )
         topology_scopes = sorted(
@@ -348,12 +404,33 @@ def assess_case(
             ),
         )
         attributes = representative.attributes
+        if enrich_enabled() and representative.identifiers:
+            # E1 linkage stores subject identifiers in the canonical
+            # identifier map; the policy checks look at attribute fields.
+            # Expose them under the canonical attribute names for checks only.
+            merged = dict(attributes)
+            for key, values in representative.identifiers.items():
+                if key in IDENTIFIER_ATTRIBUTES and values:
+                    merged.setdefault(IDENTIFIER_ATTRIBUTES[key], values[0])
+            attributes = merged
         action = rule_engine.disposition(
             category,
             attributes,
             audit_at=request["audit_at"],
             identity_values=identity_values,
         )
+        if enrich_enabled():
+            claimed = _claim_action(
+                activities,
+                resource_id,
+                request["requested_at"],
+                request["audit_at"],
+            )
+            # The workflow's own claim inside the window states the intended
+            # action; a claim followed by a still-identifiable record is a
+            # failed claim, so the plan re-runs that same action.
+            if claimed == "DELETE" and action in {"DELETE", "REDACT", "ANONYMIZE"}:
+                action = "DELETE"
 
         if category == "DATA_FLOW":
             if state.state == "PRESENT" and _as_bool(
