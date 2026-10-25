@@ -5,7 +5,9 @@
 The 518-case candidate run used the optional investigator through OpenRouter.
 Every model request failed and every authorized case fell back to the
 deterministic baseline. The resulting CSV validated and is byte-identical to
-the separately preserved baseline; no agent-derived steps were selected.
+the separately preserved baseline; no agent-derived steps were selected. A
+final-session follow-up diagnostic confirmed the root cause: OpenRouter's
+free-models-per-day rate limit (HTTP 429, `X-RateLimit-Remaining: 0`).
 
 | Provider / model | Network attempts | Retries | Failed requests | Input tokens | Output tokens | Total tokens | Reported total cost |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -34,13 +36,27 @@ reported cost. 17 investigations completed, 15 fell back, 36 candidate links
 were accepted, and 0 were rejected. These sample-run usage values are not added
 to the full-dataset totals above.
 
+## Final-session diagnostic (reported separately)
+
+| Provider / model | Calls | Succeeded | Input tokens | Output tokens | Reported cost |
+|---|---:|---:|---:|---:|---:|
+| OpenRouter / `nvidia/nemotron-3.5-super-vl:free` | 1 | 0 (HTTP 429, free-models-per-day) | 0 | 0 | $0.00000000 |
+
+The single diagnostic call used the environment-configured key (never printed)
+and returned the provider's free-tier daily-limit error with
+`X-RateLimit-Remaining: 0`. No tool call was attempted and no agent run was
+started on the 518-case set in the final session. All prediction output
+therefore remains the deterministic baseline; there is no measurable agent
+gain, and the provider's rate limit is documented as the reason the
+investigator made no successful calls at any point.
+
 ## Caveats
 
-- No second warm-cache full run was performed; the full-run cache had no
-  responses to reuse.
-- A separate successful connectivity/tool-call test, raw traces for three
-  sample cases, `AGENT_CALL_BUDGET` skips, and per-case attempt details were not
-  captured. The code made no claim about those unmeasured values.
+- No second warm-cache full run exists; the full-run cache had no responses
+  to reuse.
+- Raw traces for three sample cases were never captured (the provider
+  returned no successful completion in any run).
+- `AGENT_CALL_BUDGET` skips were not observable because no call succeeded.
 - The coding-assistant models/tools recorded in `log.txt` are not counted as
   prediction-pipeline usage here.
 - No credentials, API keys, or sensitive configuration values are included.

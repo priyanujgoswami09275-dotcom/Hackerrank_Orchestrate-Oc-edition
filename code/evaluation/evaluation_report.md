@@ -151,12 +151,19 @@ accepted no candidate links. The resulting `output.csv` is byte-identical to
 `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`), so the
 agent predictions were dropped and the deterministic baseline is selected.
 The full request set has no public labels; only sample accuracy is scoreable.
+The earlier session captured no separate successful connectivity trace; the
+run log was sanitized and the cache held 0 responses, so no raw per-case
+trace was retained.
 
-No separate successful connectivity/tool-call trace was captured, the cache
-contains no responses, and raw traces for three sample cases were not retained.
-A second warm-cache full-run comparison was not performed. Budget skips and
-`AGENT_CALL_BUDGET` behavior were not measured. Do not interpret failed network
-attempts as a measured agent accuracy result.
+A follow-up single diagnostic call (same model, same provider key) returned
+HTTP 429 "Rate limit exceeded: free-models-per-day" with
+`X-RateLimit-Remaining: 0`; the key was never printed and the response body
+is reproduced only with the key redacted. The 429 identifies the provider
+free-tier daily limit as the root cause of the prior run's 509 failures; the
+model ID and headers were otherwise accepted. Per this evidence the agent
+remains unused: 1 diagnostic call made in the final session, 0 responses
+succeeded, 0 tool calls attempted, 100% unpaid-provider fallback. No
+warm-cache full run is possible (0 cached responses).
 
 
 ## Failure analysis and custom cases

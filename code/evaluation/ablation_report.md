@@ -26,6 +26,7 @@ passed `validate_rows`.
 | Rules + agent, verifier/validator off | Not run / not measured | — | — | — | — | — | — | No safe supported mode; bypassing code verification was not justified |
 | Rules + agent + verifier + output validator (prior 32-case run) | 97 network calls / 172,870 tokens (148,681 input + 24,189 output); $0 reported | 29/32; byte-identical to rules + linkage | 161/161 / 161/193 | 122/193 | 987/1,351 | 12/32 | 15/32 (46.88%) | No measurable gain; 17 investigations completed, 36 candidates accepted, 0 rejected; 28 retries and 13 failed requests |
 | Rules + agent + verifier + output validator (full run) | 1,527 network attempts / 0 input + 0 output tokens; $0 reported | Not scoreable against hidden labels; output byte-identical to baseline | Same public-sample baseline; no new sample score | Same | Same | Same | 509/509 (100%) | No measurable gain; agent output dropped |
+| Rules + agent + verifier + output validator (final diagnostic) | 1 call / 0 tokens (HTTP 429) | Not scoreable; no agent rows | — | — | — | — | 1/1 (100%) | Root cause confirmed: OpenRouter free-tier daily limit; agent stays dropped |
 
 The full run reported 509 attempted authorized cases, 0 completed, 509
 fallbacks, 1,018 retries, 509 failed requests, 0 cache hits, and 0 accepted or

@@ -1107,3 +1107,23 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T14:18:48+05:30] Final-task Step 3 — agent connectivity diagnostic, STOP
+
+User Prompt (verbatim, secrets redacted):
+3. AGENT: one time-boxed diagnostic ... single connectivity call ... show HTTP status and error body (key redacted) ... STOP if still failing; do NOT run the 518-case agent again.
+
+Agent Response Summary:
+One OpenRouter call with the environment key returned HTTP 429 free-models-per-day (X-RateLimit-Remaining: 0); the key was never printed. This identifies the provider's daily free-tier limit as the root cause of the prior 509/509 fallback run; the model ID and headers were accepted. Agent work stopped per instruction: no tool call, no 518-case run, baseline remains the submission.
+
+Actions:
+* Ran the single connectivity call; captured status/body with key redacted.
+* Updated evaluation_report.md (root cause + diagnostic), usage_report.md (diagnostic table), ablation_report.md and decision_log.md (diagnostic row).
+* Appended this log entry; HANDOFF to be updated in the step-5 batch.
+Context:
+tool=OpenCode
+model=glm-5.3-flash-free
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
