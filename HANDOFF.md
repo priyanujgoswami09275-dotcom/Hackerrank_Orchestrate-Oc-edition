@@ -80,6 +80,23 @@ operational resume point (kept out of code.zip; committed to git).
   budget skips, and per-case attempt details remain unverified. The worktree
   itself has no `.env`; the full run command came from the main checkout.
 
+### Step 4 Feature A — submission guard
+
+- Added `code/tools/submission_guard.py`, documented its repo-root invocation
+  in `code/README.md`, and added CLI tests including a deliberately malformed
+  CSV and malformed JSON step values. The guard reports each item and exits 1
+  on any failure; it calls `validate_rows` as an additional check.
+- `python3 -m pytest code/tests -q`: 97 passed, 32 subtests passed.
+  `python3 code/check_source_literals.py`: PASS.
+- Guard checks for output CSV structure/policy/cutoffs, package contents and
+  exclusions, secret-like values in code/reports/log/archive, and dataset-driven
+  literals in runtime Python (comments, docstrings, tests, evaluation exempt).
+  Its checks pass except `log format`: 15 legacy format issues, including
+  `model=unknown` and unverified metadata in pre-existing entries. The log is
+  append-only; no historical entry was rewritten. Exit code is 1 as required.
+- The existing `code.zip` has not yet been rebuilt with the guard; Step 8 must
+  regenerate it and run the guard again.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)

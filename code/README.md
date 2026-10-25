@@ -124,6 +124,13 @@ python3 -m pytest tests -q
 python3 check_source_literals.py
 ```
 
+From the repository root, run the submission guard (it requires the
+participant-facing `dataset/` directory and supplements the pipeline validator):
+
+```bash
+python3 code/tools/submission_guard.py
+```
+
 The source scan reads participant-facing request and evidence manifests and
 fails if code embeds a dataset case ID, evidence ID, or evidence filename.
 

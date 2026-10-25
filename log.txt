@@ -955,3 +955,26 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:28:31+05:30] Step 4 — submission guard
+
+User Prompt (verbatim, secrets redacted):
+The previous response was interrupted. Continue from where you left off without repeating completed content.
+
+Agent Response Summary:
+Added the repository-root submission guard with separate PASS/FAIL items, a nonzero exit on failures, dataset-derived AST hardcoding checks, secret/archive/log checks, and explicit use of the existing pipeline validator. The deliberately bad CSV and malformed-step tests pass; the repository suite passed. The only current guard failure is legacy log metadata that cannot be rewritten under the append-only rule.
+
+Actions:
+* Added `code/tools/submission_guard.py` and `code/tests/test_submission_guard.py`; added a repo-root run instruction to `code/README.md`.
+* Ran `python3 -m pytest code/tests -q` → 97 passed, 32 subtests passed.
+* Ran `python3 code/check_source_literals.py` → PASS.
+* Ran `python3 code/tools/submission_guard.py`: output, row count/order, JSON, operations/states, numbering, ordering, evidence citations/cutoffs, pipeline validator, existing archive, secret scan, and hardcoding scan PASS; log format FAIL (15 legacy issues); exit 1.
+* Updated HANDOFF.md and appended this entry. Existing `code.zip` will be rebuilt in Step 8.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none
