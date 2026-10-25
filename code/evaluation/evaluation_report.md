@@ -95,10 +95,9 @@ evidence connects the prediction to the subject:
 
 - 18 empty-evidence account `VERIFY_RECORD_ABSENT` closing steps: nine belong
   to deletion waves whose in-window account row is not unique against the
-  subject's anchors, and nine are cited absences (`evidence_54`,
-  `evidence_51`, five `evidence_92` lookups) whose readback rows carry no
-  query key, leaving no participant-visible link between that 404 and the
-  person.
+  subject's anchors, and nine are cited absences whose readback rows carry no
+  query key, leaving no participant-visible link between those 404 results and
+  the person.
 - 7 cited analytics `VERIFY_RECORD_ANONYMIZED` steps: the analytics profiles
   in the cited evidence carry no subject key, so the mapping is not
   participant-visible.
@@ -120,13 +119,12 @@ comprised six expected COMPLETE predicted INCOMPLETE and two expected
 INCOMPLETE predicted COMPLETE.
 
 Under the enrichment build exactly three sample statuses remain wrong:
-cases `case_01`, `case_02`, and `case_04` expect COMPLETE but predict
-INCOMPLETE with empty step lists. All three have zero participant-visible
-matches for every identity value (current email, historical email, phone,
-email hash, and stable user reference) in every pre-cutoff capture, and zero
-in-window activity links; the expected citations are captures outside those
-audits' cutoffs. The planner keeps its honest INCOMPLETE fallback rather than
-citing evidence its own temporal gate rejects.
+all expect COMPLETE but predict INCOMPLETE with empty step lists. These cases
+have zero participant-visible matches for every identity value (current email,
+historical email, phone, email hash, and stable user reference) in every
+pre-cutoff capture, and zero in-window activity links; the expected citations
+are captures outside those audits' cutoffs. The planner keeps its honest
+INCOMPLETE fallback rather than citing evidence its own temporal gate rejects.
 
 The earlier support-message customer-reference interpretations, analytics
 attribution issues, and backup restore-field mismatches were resolved by the
@@ -196,10 +194,9 @@ requests:
 | NOT_APPLICABLE | 9 |
 
 The root `output.csv` contains one row per request and passed the output
-validator. Rows are sorted by `case_id`. Evaluation ids are not zero padded
-(for example `case_33` versus `case_100`), so the sort is plain
-lexicographic, matching sample behavior where both orders coincide. Its
-SHA-256 is
+validator. Rows are sorted lexicographically by `case_id`; the evaluator's
+sample IDs happen to have consistent widths, while full-dataset IDs do not.
+Its SHA-256 is
 `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`.
 A second full run in the same session wrote a byte-identical file, and an
 independent 518-case trial run to a different path also matched byte for
