@@ -1043,3 +1043,27 @@ branch=feat/investigator-agent
 repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
 parent_agent=none
+
+## [2026-10-25T13:45:32+05:30] Step 8 — final packaging
+
+User Prompt (verbatim, secrets redacted):
+8. FINAL PACKAGING. Regenerate output.csv (the baseline-or-agent choice from step 3); report row count, SHA-256, COMPLETE/INCOMPLETE/NOT_APPLICABLE counts. Run the tests. Rebuild the zip with package_submission.py (code/ contents + README + evaluation/ reports; no dataset/, .env, caches, keys). Run submission_guard.py and show its full output. List the zip at depth 2. Confirm log.txt is current and append-only.
+
+Agent Response Summary:
+Regenerated the selected baseline-only output, reran the full test suite, and rebuilt the package. The output validates at 518 rows and matches `output_baseline.csv` byte-for-byte. The package has 52 entries and passes packaging exclusions/secret checks; the standalone guard exits 1 solely because of 15 legacy log-format issues, which remain untouched under the append-only rule.
+
+Actions:
+* Ran `python3 code/run.py --disable-agent`: Cases 518; COMPLETE=133, INCOMPLETE=376, NOT_APPLICABLE=9; Validation PASS.
+* Verified exact header, sorted IDs, output SHA-256 35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed, and byte equality with `output_baseline.csv`.
+* Ran `python3 -m pytest code/tests -q` → 98 passed, 32 subtests passed.
+* Ran `python3 code/package_submission.py` → Created `code.zip`, 52 entries, exclusions and secret-like-content checks PASS; listed root and one-level archive paths.
+* Ran `python3 code/tools/submission_guard.py`: all output, pipeline, archive, secret, and hardcoding checks PASS; log format FAIL (15 historical issues); exit 1.
+* Updated HANDOFF.md and appended this entry; log remains append-only.
+
+Context:
+tool=OpenCode
+model=openai/gpt-6-luna
+branch=feat/investigator-agent
+repo_root=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+worktree=/Users/priyanujgoswami/.local/share/opencode/worktree/4681f0/investigator-agent
+parent_agent=none

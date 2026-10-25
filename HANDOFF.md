@@ -144,6 +144,23 @@ operational resume point (kept out of code.zip; committed to git).
   (none), remaining failures, unverified items, and cautiously attributed AI
   tool/model records from `log.txt`.
 
+### Step 8 final packaging
+
+- Regenerated root `output.csv` with `python3 code/run.py --disable-agent`:
+  518 rows, COMPLETE=133, INCOMPLETE=376, NOT_APPLICABLE=9, sorted by
+  `case_id`, SHA-256
+  `35351f13786f2aaa11926f8ba72febdec231b506dc96a0064a27682b8854c1ed`,
+  byte-identical to `output_baseline.csv`.
+- `python3 -m pytest code/tests -q`: 98 passed, 32 subtests passed.
+- Rebuilt `code.zip` using `code/package_submission.py`: 52 entries; package
+  excludes dataset, `.env`, caches, nested archives, and secret-like values.
+- Guard PASS: all CSV/pipeline, archive, secret, and hardcoding checks. Guard
+  FAIL: log format (15 legacy issues, including unknown/unverified historical
+  model fields); exit code 1 as required. No prior log entry was rewritten.
+- The agent remains source code only (for audit/optional use); the selected
+  submitted predictions are baseline-only. The archive listing and final guard
+  output should be rechecked after the final Step 9 log append.
+
 ## Latest metrics (32 public samples)
 
 - Status: 27/32 (A 14/16, B 13/16)

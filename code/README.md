@@ -91,9 +91,12 @@ these enrichment behaviors for a baseline comparison. Explicit `1`, `true`, or
 
 On the 32 public samples, the enriched deterministic baseline scores 29/32
 deletion statuses, with 32 missing and zero extra steps; the opt-out baseline
-scores 27/32 with 80 missing and two extra steps. These are baseline results,
-not a claim about LLM improvement. The measured agent results belong in the
-evaluation reports.
+scores 27/32 with 80 missing and two extra steps. These are baseline results.
+The first measured agent run produced a byte-identical CSV to the enriched
+baseline: 17 sample cases completed investigation, 15 fell back, and 36
+candidate links were accepted without changing any output rows. No LLM accuracy
+gain is claimed from that sample run; the full-run measurements are recorded in
+the evaluation reports.
 
 ## Sample evaluation and checks
 

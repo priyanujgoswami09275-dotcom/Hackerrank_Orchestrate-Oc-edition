@@ -7,6 +7,7 @@ import argparse
 import sys
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlparse
 
 CODE = Path(__file__).resolve().parent
 ROOT = CODE.parent
@@ -99,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     if agent_result is not None:
         print("Investigator: enabled")
         print(
+            "Investigator provider: "
+            + (urlparse(agent_config.base_url).hostname or "configured endpoint")
+        )
+        print(f"Investigator requested model: {agent_config.model}")
+        print(
             "Investigator cases: "
             f"attempted={agent_result.attempted_cases}, "
             f"completed={agent_result.completed_cases}, "
@@ -115,9 +121,28 @@ def main(argv: list[str] | None = None) -> int:
                 "Model usage: "
                 f"network calls={usage.get('network_calls', 0)}, "
                 f"cache hits={usage.get('cache_hits', 0)}, "
+                f"retries={usage.get('retries', 0)}, "
                 f"input tokens={usage.get('input_tokens', 0)}, "
-                f"output tokens={usage.get('output_tokens', 0)}"
+                f"output tokens={usage.get('output_tokens', 0)}, "
+                f"total tokens={usage.get('total_tokens', 0)}, "
+                f"failed requests={usage.get('failed_requests', 0)}"
             )
+            by_model = usage.get("by_model", {})
+            if isinstance(by_model, dict):
+                for model_name, model_usage in sorted(by_model.items()):
+                    if not isinstance(model_usage, dict):
+                        continue
+                    print(
+                        f"Model usage [{model_name}]: "
+                        f"network calls={model_usage.get('network_calls', 0)}, "
+                        f"cache hits={model_usage.get('cache_hits', 0)}, "
+                        f"input tokens={model_usage.get('input_tokens', 0)}, "
+                        f"output tokens={model_usage.get('output_tokens', 0)}, "
+                        f"total tokens={model_usage.get('total_tokens', 0)}"
+                    )
+                    model_cost = model_usage.get("cost_usd")
+                    if model_cost is not None:
+                        print(f"Model cost [{model_name}]: ${model_cost:.8f}")
             cost = usage.get("cost_usd")
             if cost is None:
                 print(

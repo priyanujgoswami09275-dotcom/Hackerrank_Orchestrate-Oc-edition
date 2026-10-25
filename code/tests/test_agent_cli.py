@@ -117,7 +117,24 @@ def test_configured_credentials_auto_run_agent_and_print_safe_summary(
             fallback_cases=0,
             accepted_candidates=2,
             rejected_candidates=3,
-            usage_summary={"network_calls": 7, "cache_hits": 1},
+            usage_summary={
+                "network_calls": 7,
+                "cache_hits": 1,
+                "retries": 2,
+                "input_tokens": 100,
+                "output_tokens": 40,
+                "total_tokens": 140,
+                "by_model": {
+                    "provider.example/fixture/returned-model": {
+                        "network_calls": 7,
+                        "cache_hits": 1,
+                        "input_tokens": 100,
+                        "output_tokens": 40,
+                        "total_tokens": 140,
+                        "cost_usd": 0.25,
+                    }
+                },
+            },
         )
 
     monkeypatch.setattr(run_cli, "OpenAICompatibleClient", FakeClient)
@@ -134,9 +151,13 @@ def test_configured_credentials_auto_run_agent_and_print_safe_summary(
     assert len(pipeline_calls) == 1
     assert pipeline_calls[0][1].step_cap == 8
     assert "Investigator: enabled" in stdout
+    assert "Investigator provider: provider.example" in stdout
+    assert "Investigator requested model: fixture/model" in stdout
     assert "attempted=1, completed=1, fallbacks=0" in stdout
     assert "Investigator candidates: accepted=2, rejected=3" in stdout
-    assert "network calls=7, cache hits=1" in stdout
+    assert "network calls=7, cache hits=1, retries=2" in stdout
+    assert "total tokens=140" in stdout
+    assert "provider.example/fixture/returned-model" in stdout
     assert "fixture-secret-that-must-not-print" not in stdout
     assert "subject@example.test" not in stdout
 
